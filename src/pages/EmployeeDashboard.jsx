@@ -1,14 +1,31 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell, TrendingUp, LogOut, CheckCircle, X,
-  Star, Shield,  Code2, Lock, Users, Zap,
+  Star, Shield, Code2, Lock, Users, Zap,
   DollarSign, Mail, ExternalLink, ArrowRight,
   BarChart2, Activity, GitBranch, Terminal,
-  Target, Layers, Clock, Briefcase, 
-  Sparkles, ChevronRight, Settings, HelpCircle,
-  AlertCircle, Award, LayoutDashboard
+  Target, Layers, Clock, Briefcase, Mic,
+  Sparkles, ChevronRight, ChevronDown, Settings, HelpCircle,
+  AlertCircle, Award, LayoutDashboard, BrainCircuit, RefreshCw, Search
 } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import {
+  subscribeEmployeeProfile,
+  subscribeEmployeeInbox,
+  subscribeEmployeePipeline,
+  subscribeAllCandidates,
+  subscribeEmployeeShadowInterviews,
+  createShadowInterview,
+  getCandidateProfile,
+  acceptRequest,
+  declineRequest,
+  updateEmployeeProfile,
+} from '../firebase/firestore'
+import { timeAgo } from '../firebase/utils'
+import { generateEmployerRecommendations, scoreCandidate } from '../services/recommendationEngine'
+import { simulateReferral, simulateImprovement } from '../services/referralSimulator'
+import { generateQuestions } from '../services/shadowInterview'
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const C = {
@@ -35,95 +52,13 @@ const C = {
 
 const serif = { fontFamily: "'DM Serif Display', serif" }
 
-// ── Mock Data ──────────────────────────────────────────────────────────────────
-const INBOX_CANDIDATES = [
-  {
-    id: 1,
-    alias: 'Candidate #A7F2',
-    realName: 'David Chen',
-    email: 'david.c@dev.io',
-    match: 91,
-    role: 'Senior Frontend Engineer',
-    targetReq: 'Senior Frontend Engineer',
-    yoe: 6,
-    pitch: 'Led frontend infra at a 50-person Series B startup. Built the design system from scratch, reduced bundle size by 40%. Strong React + TypeScript. Looking for a fintech challenge where I can own a product area end-to-end.',
-    aiInsight: 'Strong signal: High commit density in React repositories directly matches your current stack requirements. 64-day streak indicates sustained shipping cadence.',
-    skills: ['React', 'TypeScript', 'Node.js', 'GraphQL', 'Figma'],
-    GitBranch: {
-      commits: 482, topLang: 'TypeScript', streak: 64, repos: 31,
-      contributions: [
-        [0,1,3,2,0,1,4],[2,3,1,0,2,4,3],[1,0,2,3,1,0,2],[3,2,4,1,3,2,0],
-        [0,2,1,3,0,4,2],[1,3,0,2,1,3,4],[4,1,2,0,3,1,2],[2,0,3,4,1,2,3],
-        [1,3,2,0,4,1,0],[0,1,4,2,3,0,1],[3,2,1,4,0,3,2],[1,0,3,2,1,4,3],
-      ],
-      languages: [{ lang: 'TypeScript', pct: 58 }, { lang: 'JavaScript', pct: 24 }, { lang: 'CSS', pct: 18 }],
-    },
-    leetcode: { solved: 312, rating: 1820, hard: 74, medium: 181, easy: 57 },
-    receivedAt: '2h ago',
-  },
-  {
-    id: 2,
-    alias: 'Candidate #B3D9',
-    realName: 'Sarah Jenkins',
-    email: 's.jenkins@sys.dev',
-    match: 78,
-    role: 'Backend Engineer',
-    targetReq: 'Full-Stack Developer',
-    yoe: 4,
-    pitch: 'Backend engineer with 4 years in distributed systems. Shipped features at scale for a 10M+ DAU product. Designed a Kafka-based event pipeline processing 2M events/day. Looking to move to a product-focused team.',
-    aiInsight: 'Matches requirement for distributed systems experience. Notable skill gap in Kafka (currently learning). High LeetCode consistency indicates strong fundamentals.',
-    skills: ['Go', 'Python', 'Kafka', 'PostgreSQL', 'AWS'],
-    GitBranch: {
-      commits: 267, topLang: 'Go', streak: 31, repos: 18,
-      contributions: [
-        [0,0,1,2,0,1,2],[1,2,0,0,1,3,2],[0,0,1,2,0,0,1],[2,1,3,0,2,1,0],
-        [0,1,0,2,0,3,1],[1,2,0,1,1,2,3],[3,0,1,0,2,1,1],[1,0,2,3,0,1,2],
-        [0,2,1,0,3,0,0],[0,1,3,1,2,0,1],[2,1,0,3,0,2,1],[0,0,2,1,1,3,2],
-      ],
-      languages: [{ lang: 'Go', pct: 62 }, { lang: 'Python', pct: 28 }, { lang: 'Shell', pct: 10 }],
-    },
-    leetcode: { solved: 198, rating: 1640, hard: 31, medium: 102, easy: 65 },
-    receivedAt: '5h ago',
-  },
-  {
-    id: 3,
-    alias: 'Candidate #C1E5',
-    realName: 'Marcus Silva',
-    email: 'marcus@silva.net',
-    match: 63,
-    role: 'Full-Stack Engineer',
-    targetReq: 'Full-Stack Developer',
-    yoe: 2,
-    pitch: 'Full-stack generalist with 2 years at a YC company. Comfortable owning features end-to-end. Shipped 3 core product features solo, from design review to production. Strong written communication.',
-    aiInsight: 'Lower tech overlap but strong alignment with your previous successful referral profiles (YC alumni pattern). Written communication scores high across all signals.',
-    skills: ['React', 'Rails', 'PostgreSQL', 'Redis', 'Docker'],
-    GitBranch: {
-      commits: 143, topLang: 'Ruby', streak: 18, repos: 12,
-      contributions: [
-        [0,0,0,1,0,0,1],[0,1,0,0,1,2,0],[0,0,0,1,0,0,0],[1,0,2,0,1,0,0],
-        [0,0,0,1,0,2,0],[0,1,0,0,0,1,1],[1,0,0,0,1,0,0],[0,0,1,2,0,0,1],
-        [0,1,0,0,2,0,0],[0,0,1,0,1,0,0],[1,0,0,2,0,1,0],[0,0,1,0,0,2,1],
-      ],
-      languages: [{ lang: 'Ruby', pct: 45 }, { lang: 'JavaScript', pct: 38 }, { lang: 'ERB', pct: 17 }],
-    },
-    leetcode: { solved: 89, rating: 1410, hard: 8, medium: 44, easy: 37 },
-    receivedAt: '1d ago',
-  },
-]
-
-const PIPELINE = [
-  { id: 1, alias: 'Candidate #F4A1', name: 'Elena Rostova', role: 'Staff Engineer',      match: 88, status: 'hired',          bounty: 4200, date: '3w ago', stage: 4 },
-  { id: 2, alias: 'Candidate #G2C3', name: 'James Kim',     role: 'Senior Backend',       match: 71, status: 'offer_extended', bounty: 2800, date: '5w ago', stage: 3 },
-  { id: 3, alias: 'Candidate #H9B7', name: 'Priya Patel',   role: 'Frontend Engineer',    match: 65, status: 'interviewing',   bounty: 1500, date: '7w ago', stage: 2 },
-  { id: 4, alias: 'Candidate #K2M8', name: 'Leo Marsh',     role: 'DevOps Engineer',      match: 55, status: 'declined',       bounty: 0,    date: '9w ago', stage: 1 },
-]
-
 const STAGES = ['Referred', 'Screening', 'Interview', 'Offer', 'Hired']
 
 const STATUS_CFG = {
   hired:         { label: 'Hired',          color: C.emerald, bg: C.emeraldDim, border: C.emeraldBorder },
   offer_extended:{ label: 'Offer Extended', color: C.accent,  bg: C.accentDim,  border: C.accentBorder  },
   interviewing:  { label: 'Interviewing',   color: C.amber,   bg: C.amberDim,   border: C.amberBorder   },
+  referred:      { label: 'Referred',       color: C.accent,  bg: C.accentDim,  border: C.accentBorder  },
   declined:      { label: 'Declined',       color: C.subtle,  bg: C.surface,    border: C.border        },
 }
 
@@ -177,7 +112,7 @@ function LangBar({ languages }) {
 
 // ── Status Badge ───────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
-  const cfg = STATUS_CFG[status]
+  const cfg = STATUS_CFG[status] || STATUS_CFG.declined
   return (
     <span className="text-[10px] font-medium px-2 py-0.5 rounded-sm"
       style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
@@ -201,13 +136,138 @@ function PipelineDots({ stage, total = 5 }) {
   )
 }
 
+function generateMockGitBranch(skills) {
+  const topLang = skills?.[0] || 'JavaScript'
+  const commits = 150 + Math.floor(Math.random() * 350)
+  return {
+    commits,
+    topLang,
+    streak: 10 + Math.floor(Math.random() * 60),
+    repos: 8 + Math.floor(Math.random() * 25),
+    contributions: Array.from({ length: 12 }, () =>
+      Array.from({ length: 7 }, () => Math.floor(Math.random() * 5))
+    ),
+    languages: (skills || ['JavaScript']).slice(0, 3).map((s, i) => ({
+      lang: s,
+      pct: Math.max(10, 60 - i * 20 + Math.floor(Math.random() * 10)),
+    })),
+  }
+}
+
+function generateMockLeetCode() {
+  const easy = 30 + Math.floor(Math.random() * 40)
+  const medium = 50 + Math.floor(Math.random() * 130)
+  const hard = 5 + Math.floor(Math.random() * 70)
+  return {
+    solved: easy + medium + hard,
+    rating: 1300 + Math.floor(Math.random() * 600),
+    hard,
+    medium,
+    easy,
+  }
+}
+
+// ── Probability Gauge ─────────────────────────────────────────────────────────
+function ProbGauge({ value, label, size = 72, color }) {
+  const radius = (size - 6) / 2
+  const circumference = Math.PI * radius
+  const offset = circumference - (value / 100) * circumference
+
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative" style={{ width: size, height: size / 2 + 8 }}>
+        <svg width={size} height={size / 2 + 8} style={{ overflow: 'visible' }}>
+          <path
+            d={`M ${3} ${size / 2 + 2} A ${radius} ${radius} 0 0 1 ${size - 3} ${size / 2 + 2}`}
+            fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={5} strokeLinecap="round"
+          />
+          <motion.path
+            d={`M ${3} ${size / 2 + 2} A ${radius} ${radius} 0 0 1 ${size - 3} ${size / 2 + 2}`}
+            fill="none" stroke={color} strokeWidth={5} strokeLinecap="round"
+            strokeDasharray={circumference}
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset: offset }}
+            transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-end justify-center pb-0">
+          <span className="text-lg font-bold" style={{ color, ...serif }}>{value}%</span>
+        </div>
+      </div>
+      <span className="text-[10px] font-medium" style={{ color: C.subtle }}>{label}</span>
+    </div>
+  )
+}
+
+// ── Risk Badge ────────────────────────────────────────────────────────────────
+function RiskBadge({ risk }) {
+  const colors = {
+    high:   { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)', text: '#EF4444' },
+    medium: { bg: C.amberDim, border: C.amberBorder, text: C.amber },
+    low:    { bg: C.surface, border: C.border, text: C.subtle },
+  }
+  const c = colors[risk.severity] || colors.low
+  return (
+    <div className="rounded-sm p-3 flex items-start gap-2.5" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+      <AlertCircle size={12} className="shrink-0 mt-0.5" style={{ color: c.text }} />
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold" style={{ color: c.text }}>{risk.label}</p>
+        <p className="text-[10px] mt-0.5" style={{ color: C.subtle }}>{risk.detail}</p>
+      </div>
+      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-sm shrink-0"
+        style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
+        {risk.severity}
+      </span>
+    </div>
+  )
+}
+
 // ── Candidate Review Modal ─────────────────────────────────────────────────────
-function CandidateModal({ candidate, onClose, onDecide }) {
+function CandidateModal({ candidate, onClose, onDecide, employeeProfile, onRequestInterview, interviewResult }) {
   const [tab, setTab]       = useState('overview')
-  const [state, setState]   = useState('anon') // 'anon' | 'deciding' | 'revealed'
+  const [state, setState]   = useState('anon')
   const [action, setAction] = useState(null)
+  const [simResult, setSimResult] = useState(null)
+  const [simRunning, setSimRunning] = useState(false)
+  const [interviewRequesting, setInterviewRequesting] = useState(false)
+
+  const candidateId = candidate._candidateId || candidate.id
+  const hasInterview = interviewResult?.status === 'evaluated'
+  const interviewPending = interviewResult?.status === 'generated' || interviewResult?.status === 'submitted'
+
+  const handleRequestInterview = async () => {
+    setInterviewRequesting(true)
+    const profile = candidate._candidateProfile || {}
+    await onRequestInterview?.(
+      candidateId,
+      candidate.targetReq || candidate.role,
+      profile.skills || candidate.skills || [],
+      profile.yearsExperience || candidate.yoe || 2,
+    )
+    setInterviewRequesting(false)
+  }
 
   const matchColor = candidate.match >= 80 ? C.accent : candidate.match >= 65 ? C.amber : C.subtle
+
+  const runSimulation = () => {
+    setSimRunning(true)
+    setTimeout(() => {
+      const candProfile = candidate._candidateProfile || {
+        name: candidate.realName || candidate.alias,
+        email: candidate.email,
+        skills: candidate.skills,
+        yearsExperience: candidate.yoe,
+        currentRole: candidate.role,
+        lookingFor: candidate.targetReq,
+        bio: candidate.pitch,
+        githubConnected: false,
+      }
+      const result = simulateReferral(candProfile, employeeProfile, candidate.targetReq)
+      setSimResult(result)
+      setSimRunning(false)
+      setTab('simulation')
+    }, 800)
+  }
 
   const handleDecline = () => {
     setAction('decline')
@@ -225,6 +285,16 @@ function CandidateModal({ candidate, onClose, onDecide }) {
     onClose()
   }
 
+  const buildTabs = () => {
+    if (state === 'revealed') return []
+    const t = ['overview']
+    if (hasInterview) t.push('interview')
+    if (simResult) t.push('simulation')
+    t.push('proof of work')
+    return t
+  }
+  const tabs = buildTabs()
+
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -239,14 +309,12 @@ function CandidateModal({ candidate, onClose, onDecide }) {
         className="w-full max-w-xl max-h-[88vh] flex flex-col rounded-sm overflow-hidden"
         style={{ background: '#0D0D0E', border: `1px solid ${C.border}` }}
       >
-        {/* Match bar */}
         <div className="h-0.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
           <motion.div initial={{ width: 0 }} animate={{ width: `${candidate.match}%` }}
             transition={{ duration: 0.85, ease: [0.22,1,0.36,1] }}
             style={{ height: '100%', background: matchColor }} />
         </div>
 
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 p-5" style={{ borderBottom: `1px solid ${C.border}` }}>
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-sm flex items-center justify-center shrink-0"
@@ -278,7 +346,6 @@ function CandidateModal({ candidate, onClose, onDecide }) {
                         {candidate.role}
                       </span>
                     </div>
-                    {/* Explicit Target Req Display */}
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <Target size={11} style={{ color: C.accent }} />
                       <span className="text-[10px]" style={{ color: C.secondary }}>Applying for:</span>
@@ -301,25 +368,69 @@ function CandidateModal({ candidate, onClose, onDecide }) {
           </div>
         </div>
 
-        {/* Tabs — only in anon state */}
-        {state !== 'revealed' && (
-          <div className="flex" style={{ borderBottom: `1px solid ${C.border}` }}>
-            {['overview', 'proof of work'].map(t => (
-              <button key={t} onClick={() => setTab(t)}
-                className="px-5 py-2.5 text-xs font-medium capitalize transition-colors relative"
-                style={{ color: tab === t ? C.accent : C.subtle }}>
-                {t}
-                {tab === t && <motion.div layoutId="modal-tab" className="absolute bottom-0 left-0 right-0 h-px" style={{ background: C.accent }} />}
+        {tabs.length > 0 && (
+          <div className="flex items-center" style={{ borderBottom: `1px solid ${C.border}` }}>
+            <div className="flex flex-1">
+              {tabs.map(t => (
+                <button key={t} onClick={() => setTab(t)}
+                  className="px-5 py-2.5 text-xs font-medium capitalize transition-colors relative"
+                  style={{ color: tab === t ? C.accent : C.subtle }}>
+                  {t}
+                  {tab === t && <motion.div layoutId="modal-tab" className="absolute bottom-0 left-0 right-0 h-px" style={{ background: C.accent }} />}
+                </button>
+              ))}
+            </div>
+            {!simResult && !simRunning && (
+              <button onClick={runSimulation}
+                className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 mr-3 rounded-sm transition-all"
+                style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', color: '#A855F7' }}>
+                <Zap size={10} /> Simulate Referral
               </button>
-            ))}
+            )}
+            {simRunning && (
+              <div className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 mr-3 rounded-sm"
+                style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', color: '#A855F7' }}>
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                  <Zap size={10} />
+                </motion.div>
+                Simulating...
+              </div>
+            )}
+            {!interviewResult && !interviewRequesting && (
+              <button onClick={handleRequestInterview}
+                className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 mr-3 rounded-sm transition-all"
+                style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', color: '#818CF8' }}>
+                <Mic size={10} /> Request Interview
+              </button>
+            )}
+            {interviewRequesting && (
+              <div className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 mr-3 rounded-sm"
+                style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', color: '#818CF8' }}>
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                  <RefreshCw size={10} />
+                </motion.div>
+                Sending...
+              </div>
+            )}
+            {interviewPending && (
+              <span className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 mr-3 rounded-sm"
+                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#F59E0B' }}>
+                <Clock size={10} /> Interview Pending
+              </span>
+            )}
+            {hasInterview && (
+              <button onClick={() => setTab('interview')}
+                className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 mr-3 rounded-sm transition-all"
+                style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', color: '#10B981' }}>
+                <CheckCircle size={10} /> View Results
+              </button>
+            )}
           </div>
         )}
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto p-5">
           <AnimatePresence mode="wait">
 
-            {/* ── REVEALED ── */}
             {state === 'revealed' && (
               <motion.div key="unlocked" initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.35 }} className="space-y-4">
                 <div className="rounded-sm p-4 flex items-center gap-3" style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}` }}>
@@ -341,6 +452,16 @@ function CandidateModal({ candidate, onClose, onDecide }) {
                     <span className="text-xs truncate" style={{ color: C.secondary }}>{candidate.email}</span>
                   </div>
                 </div>
+                {simResult && (
+                  <div className="rounded-sm p-4" style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.2)' }}>
+                    <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: '#A855F7' }}>Simulation Summary</p>
+                    <div className="flex items-center gap-4 mb-2">
+                      <span className="text-xs" style={{ color: C.secondary }}>Interview: <b style={{ color: C.primary }}>{simResult.interviewProbability}%</b></span>
+                      <span className="text-xs" style={{ color: C.secondary }}>Hire: <b style={{ color: C.primary }}>{simResult.hireProbability}%</b></span>
+                    </div>
+                    <p className="text-[11px]" style={{ color: C.subtle }}>{simResult.explanation.suggestion}</p>
+                  </div>
+                )}
                 <div className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                   <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: C.muted }}>What happens next</p>
                   {['Copy their contact and reach out directly', 'Submit to your HR or ATS system', 'You earn +0.05 reputation on confirmation', 'Bounty releases upon successful hire'].map((s, i) => (
@@ -354,10 +475,8 @@ function CandidateModal({ candidate, onClose, onDecide }) {
               </motion.div>
             )}
 
-            {/* ── ANON: OVERVIEW ── */}
             {state !== 'revealed' && tab === 'overview' && (
               <motion.div key="overview" variants={stagger} initial="hidden" animate="show" exit={{ opacity:0 }} className="space-y-4">
-                {/* AI Insight */}
                 <motion.div variants={fadeUp} className="rounded-sm p-3.5 flex gap-2.5"
                   style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}` }}>
                   <Sparkles size={12} style={{ color: C.accent }} className="shrink-0 mt-0.5" />
@@ -366,17 +485,17 @@ function CandidateModal({ candidate, onClose, onDecide }) {
                     <p className="text-xs leading-relaxed" style={{ color: C.secondary }}>{candidate.aiInsight}</p>
                   </div>
                 </motion.div>
-                {/* Pitch */}
-                <motion.div variants={fadeUp}>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Mail size={10} style={{ color: C.accent }} />
-                    <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: C.muted }}>Warm intro pitch</span>
-                  </div>
-                  <div className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}`, borderLeft: `2px solid ${C.accentBorder}` }}>
-                    <p className="text-sm leading-relaxed" style={{ color: C.secondary }}>"{candidate.pitch}"</p>
-                  </div>
-                </motion.div>
-                {/* Skills */}
+                {candidate.pitch && (
+                  <motion.div variants={fadeUp}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Mail size={10} style={{ color: C.accent }} />
+                      <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: C.muted }}>Warm intro pitch</span>
+                    </div>
+                    <div className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}`, borderLeft: `2px solid ${C.accentBorder}` }}>
+                      <p className="text-sm leading-relaxed" style={{ color: C.secondary }}>"{candidate.pitch}"</p>
+                    </div>
+                  </motion.div>
+                )}
                 <motion.div variants={fadeUp}>
                   <div className="flex items-center gap-1.5 mb-2">
                     <Layers size={10} style={{ color: C.accent }} />
@@ -389,12 +508,11 @@ function CandidateModal({ candidate, onClose, onDecide }) {
                     ))}
                   </div>
                 </motion.div>
-                {/* Quick stats */}
                 <motion.div variants={fadeUp} className="grid grid-cols-3 gap-2">
                   {[
-                    { label: 'Commits', value: candidate.GitBranch.commits, sub: `${candidate.GitBranch.streak}d streak`, icon: GitBranch },
-                    { label: 'LC Solved', value: candidate.leetcode.solved, sub: `Rating ${candidate.leetcode.rating}`, icon: Code2 },
-                    { label: 'Years Exp', value: candidate.yoe, sub: candidate.role.split(' ')[0], icon: Briefcase },
+                    { label: 'Commits', value: candidate.GitBranch?.commits ?? '—', sub: candidate.GitBranch ? `${candidate.GitBranch.streak}d streak` : '—', icon: GitBranch },
+                    { label: 'LC Solved', value: candidate.leetcode?.solved ?? '—', sub: candidate.leetcode ? `Rating ${candidate.leetcode.rating}` : '—', icon: Code2 },
+                    { label: 'Years Exp', value: candidate.yoe ?? '—', sub: candidate.role?.split(' ')[0] || '', icon: Briefcase },
                   ].map(({ label, value, sub, icon: Icon }) => (
                     <div key={label} className="rounded-sm p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                       <div className="flex items-center gap-1.5 mb-1.5">
@@ -409,63 +527,288 @@ function CandidateModal({ candidate, onClose, onDecide }) {
               </motion.div>
             )}
 
-            {/* ── ANON: PROOF OF WORK ── */}
+            {state !== 'revealed' && tab === 'interview' && hasInterview && (
+              <motion.div key="interview" variants={stagger} initial="hidden" animate="show" exit={{ opacity:0 }} className="space-y-4">
+                {(() => {
+                  const s = interviewResult.scores
+                  const recColors = { strong_yes: C.accent, yes: '#10B981', maybe: '#F59E0B', no: '#EF4444' }
+                  const recColor = recColors[s.recommendation] || C.subtle
+                  return (
+                    <>
+                      {/* Recommendation badge */}
+                      <motion.div variants={fadeUp} className="rounded-sm p-5 text-center" style={{ background: `${recColor}08`, border: `1px solid ${recColor}30` }}>
+                        <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: C.subtle }}>AI Recommendation</p>
+                        <span className="inline-block text-sm font-bold px-4 py-1.5 rounded-sm" style={{ color: recColor, background: `${recColor}18`, border: `1px solid ${recColor}40` }}>
+                          {s.recLabel}
+                        </span>
+                        <p className="text-[22px] font-bold mt-3" style={{ fontFamily: "'DM Serif Display', serif", color: recColor }}>{s.overallScore}/100</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: C.subtle }}>Overall Score</p>
+                      </motion.div>
+
+                      {/* Score breakdown */}
+                      <motion.div variants={fadeUp} className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                        <p className="text-[10px] uppercase tracking-widest mb-3" style={{ color: C.subtle }}>Score Breakdown</p>
+                        <div className="space-y-2.5">
+                          {[
+                            { label: 'Technical',     value: s.technicalScore,     color: '#C8FF00' },
+                            { label: 'Communication', value: s.communicationScore, color: '#818CF8' },
+                            { label: 'Confidence',    value: s.confidenceScore,    color: '#F59E0B' },
+                            { label: 'Behavioral',    value: s.behavioralScore,    color: '#A855F7' },
+                          ].map(m => (
+                            <div key={m.label}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px]" style={{ color: C.secondary }}>{m.label}</span>
+                                <span className="text-[11px] font-bold" style={{ color: m.value >= 70 ? m.color : m.value >= 45 ? '#F59E0B' : C.subtle }}>
+                                  {m.value}
+                                </span>
+                              </div>
+                              <div className="h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${m.value}%` }}
+                                  transition={{ duration: 0.6, delay: 0.1 }}
+                                  className="h-full rounded-full" style={{ background: m.color }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+
+                      {/* Strengths & Weaknesses */}
+                      <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3">
+                        <div className="rounded-sm p-4" style={{ background: 'rgba(200,255,0,0.02)', border: '1px solid rgba(200,255,0,0.12)' }}>
+                          <p className="text-[10px] uppercase tracking-widest mb-2 text-emerald-400">Strengths</p>
+                          <div className="space-y-1.5">
+                            {s.strengths.map((str, i) => (
+                              <p key={i} className="text-[11px]" style={{ color: C.secondary }}>+ {str}</p>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-sm p-4" style={{ background: 'rgba(239,68,68,0.02)', border: '1px solid rgba(239,68,68,0.12)' }}>
+                          <p className="text-[10px] uppercase tracking-widest mb-2 text-red-400">Weaknesses</p>
+                          <div className="space-y-1.5">
+                            {s.weaknesses.map((w, i) => (
+                              <p key={i} className="text-[11px]" style={{ color: C.secondary }}>- {w}</p>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      {/* AI Summary */}
+                      <motion.div variants={fadeUp} className="rounded-sm p-4" style={{ background: 'rgba(168,85,247,0.03)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                        <p className="text-[10px] uppercase tracking-widest mb-2 text-purple-400">AI Summary</p>
+                        <p className="text-[12px] leading-relaxed" style={{ color: C.secondary }}>{s.aiSummary}</p>
+                      </motion.div>
+
+                      {/* Per-question breakdown */}
+                      {s.perQuestion && (
+                        <motion.div variants={fadeUp} className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                          <p className="text-[10px] uppercase tracking-widest mb-3" style={{ color: C.subtle }}>Per-Question Results</p>
+                          <div className="space-y-2">
+                            {s.perQuestion.map((pq, i) => (
+                              <div key={i} className="flex items-center justify-between gap-3 text-[11px] border-b pb-2" style={{ borderColor: C.border }}>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                                    pq.type === 'behavioral' ? 'bg-purple-500/15 text-purple-400' : 'bg-[#C8FF00]/10 text-[#C8FF00]'
+                                  }`}>
+                                    {i + 1}
+                                  </span>
+                                  <span className="truncate" style={{ color: C.secondary }}>{pq.question}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-sm ${
+                                    pq.depth === 'deep' ? 'bg-emerald-500/10 text-emerald-400' :
+                                    pq.depth === 'moderate' ? 'bg-amber-500/10 text-amber-400' :
+                                    'bg-white/5 text-[#3D3B38]'
+                                  }`}>{pq.depth}</span>
+                                  <span className="font-bold" style={{ color: pq.techScore >= 70 ? C.accent : pq.techScore >= 45 ? '#F59E0B' : C.subtle }}>{pq.techScore}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </>
+                  )
+                })()}
+              </motion.div>
+            )}
+
+            {state !== 'revealed' && tab === 'simulation' && simResult && (
+              <motion.div key="simulation" variants={stagger} initial="hidden" animate="show" exit={{ opacity:0 }} className="space-y-4">
+                {/* Probability gauges */}
+                <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.18)' }}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Zap size={12} style={{ color: '#A855F7' }} />
+                    <span className="text-xs font-semibold" style={{ color: '#A855F7' }}>Referral Outcome Prediction</span>
+                  </div>
+                  <div className="flex items-center justify-around">
+                    <ProbGauge value={simResult.matchScore} label="Match Score" color={simResult.matchScore >= 70 ? C.accent : simResult.matchScore >= 50 ? C.amber : C.subtle} />
+                    <ProbGauge value={simResult.interviewProbability} label="Interview Chance" color={simResult.interviewProbability >= 60 ? C.emerald : C.amber} />
+                    <ProbGauge value={simResult.hireProbability} label="Hire Chance" color={simResult.hireProbability >= 40 ? C.emerald : simResult.hireProbability >= 20 ? C.amber : C.subtle} />
+                  </div>
+                </motion.div>
+
+                {/* Factor breakdown */}
+                <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                  <p className="text-[10px] uppercase tracking-widest mb-3" style={{ color: C.muted }}>Score Breakdown</p>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Cosine Similarity (50%)', value: simResult.factors.cosineSimilarity },
+                      { label: 'Experience Score (20%)', value: simResult.factors.experienceScore },
+                      { label: 'Skill Match Score (20%)', value: simResult.factors.skillMatchScore },
+                      { label: 'GitHub / Proof Score (10%)', value: simResult.factors.githubScore },
+                    ].map((f, i) => {
+                      const barColor = f.value >= 70 ? C.accent : f.value >= 45 ? C.amber : C.subtle
+                      return (
+                        <div key={f.label}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px]" style={{ color: C.secondary }}>{f.label}</span>
+                            <span className="text-[11px] font-semibold" style={{ color: C.primary }}>{f.value}%</span>
+                          </div>
+                          <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                            <motion.div
+                              initial={{ width: 0 }} animate={{ width: `${f.value}%` }}
+                              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.1 * i }}
+                              className="h-full rounded-full" style={{ background: barColor }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </motion.div>
+
+                {/* Critical skills */}
+                <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                  <p className="text-[10px] uppercase tracking-widest mb-3" style={{ color: C.muted }}>
+                    Critical Skills for {simResult.meta.targetRole}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {simResult.meta.criticalSkills.map(s => {
+                      const matched = simResult.meta.matchedCritical.map(x => x.toLowerCase()).includes(s.toLowerCase())
+                      return (
+                        <span key={s} className="text-[11px] px-2.5 py-1 rounded-sm" style={{
+                          background: matched ? C.accentDim : 'rgba(239,68,68,0.06)',
+                          border: `1px solid ${matched ? C.accentBorder : 'rgba(239,68,68,0.18)'}`,
+                          color: matched ? C.accent : '#EF4444',
+                        }}>
+                          {matched ? '✓' : '✗'} {s}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </motion.div>
+
+                {/* Risk factors */}
+                {simResult.riskFactors.length > 0 && (
+                  <motion.div variants={fadeUp}>
+                    <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: C.muted }}>Risk Factors ({simResult.riskFactors.length})</p>
+                    <div className="space-y-2">
+                      {simResult.riskFactors.map((r, i) => <RiskBadge key={i} risk={r} />)}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* AI Explanation */}
+                <motion.div variants={fadeUp} className="rounded-sm overflow-hidden" style={{ border: '1px solid rgba(168,85,247,0.18)' }}>
+                  <div className="px-5 py-3 flex items-center gap-2" style={{ background: 'rgba(168,85,247,0.06)', borderBottom: '1px solid rgba(168,85,247,0.15)' }}>
+                    <BrainCircuit size={12} style={{ color: '#A855F7' }} />
+                    <span className="text-xs font-semibold" style={{ color: '#A855F7' }}>AI Insights</span>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Evaluation</p>
+                      <p className="text-xs leading-relaxed" style={{ color: C.secondary }}>{simResult.explanation.evaluation}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: C.emerald }}>Strengths</p>
+                        <div className="space-y-1">
+                          {simResult.explanation.strengths.map((s, i) => (
+                            <div key={i} className="flex items-start gap-1.5">
+                              <CheckCircle size={9} className="shrink-0 mt-0.5" style={{ color: C.emerald }} />
+                              <span className="text-[11px]" style={{ color: C.secondary }}>{s}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: '#EF4444' }}>Weaknesses</p>
+                        <div className="space-y-1">
+                          {simResult.explanation.weaknesses.map((w, i) => (
+                            <div key={i} className="flex items-start gap-1.5">
+                              <AlertCircle size={9} className="shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
+                              <span className="text-[11px]" style={{ color: C.secondary }}>{w}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-sm p-3" style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.12)' }}>
+                      <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: '#A855F7' }}>Suggestion</p>
+                      <p className="text-[11px] leading-relaxed" style={{ color: C.secondary }}>{simResult.explanation.suggestion}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+
             {state !== 'revealed' && tab === 'proof of work' && (
               <motion.div key="proof" variants={stagger} initial="hidden" animate="show" exit={{ opacity:0 }} className="space-y-4">
-                {/* GitBranch */}
-                <motion.div variants={fadeUp} className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1.5">
-                      <GitBranch size={12} style={{ color: C.accent }} />
-                      <span className="text-xs font-semibold" style={{ color: C.primary }}>GitBranch Activity</span>
-                    </div>
-                    <span className="text-[10px]" style={{ color: C.muted }}>{candidate.GitBranch.repos} public repos</span>
-                  </div>
-                  <Heatmap data={candidate.GitBranch.contributions} />
-                  <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <GitBranch size={10} style={{ color: C.accent }} />
-                      <span className="text-[10px] uppercase tracking-widest" style={{ color: C.muted }}>Language breakdown</span>
-                    </div>
-                    <LangBar languages={candidate.GitBranch.languages} />
-                  </div>
-                </motion.div>
-                {/* LeetCode */}
-                <motion.div variants={fadeUp} className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <Terminal size={12} style={{ color: C.accent }} />
-                    <span className="text-xs font-semibold" style={{ color: C.primary }}>LeetCode Breakdown</span>
-                  </div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-2xl font-bold" style={{ color: C.primary, ...serif }}>
-                      {candidate.leetcode.solved}<span className="text-sm font-normal ml-1" style={{ color: C.muted }}>solved</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold" style={{ color: C.accent }}>{candidate.leetcode.rating}</div>
-                      <div className="text-[10px]" style={{ color: C.muted }}>contest rating</div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: 'Hard',   value: candidate.leetcode.hard,   color: '#EF4444' },
-                      { label: 'Medium', value: candidate.leetcode.medium, color: C.amber },
-                      { label: 'Easy',   value: candidate.leetcode.easy,   color: C.emerald },
-                    ].map(({ label, value, color }) => (
-                      <div key={label} className="text-center rounded-sm py-2.5"
-                        style={{ background: `${color}0A`, border: `1px solid ${color}22` }}>
-                        <div className="text-sm font-bold" style={{ color }}>{value}</div>
-                        <div className="text-[10px]" style={{ color: C.muted }}>{label}</div>
+                {candidate.GitBranch && (
+                  <motion.div variants={fadeUp} className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-1.5">
+                        <GitBranch size={12} style={{ color: C.accent }} />
+                        <span className="text-xs font-semibold" style={{ color: C.primary }}>GitHub Activity</span>
                       </div>
-                    ))}
-                  </div>
-                </motion.div>
+                      <span className="text-[10px]" style={{ color: C.muted }}>{candidate.GitBranch.repos} public repos</span>
+                    </div>
+                    <Heatmap data={candidate.GitBranch.contributions} />
+                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <GitBranch size={10} style={{ color: C.accent }} />
+                        <span className="text-[10px] uppercase tracking-widest" style={{ color: C.muted }}>Language breakdown</span>
+                      </div>
+                      <LangBar languages={candidate.GitBranch.languages} />
+                    </div>
+                  </motion.div>
+                )}
+                {candidate.leetcode && (
+                  <motion.div variants={fadeUp} className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <Terminal size={12} style={{ color: C.accent }} />
+                      <span className="text-xs font-semibold" style={{ color: C.primary }}>LeetCode Breakdown</span>
+                    </div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-2xl font-bold" style={{ color: C.primary, ...serif }}>
+                        {candidate.leetcode.solved}<span className="text-sm font-normal ml-1" style={{ color: C.muted }}>solved</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-semibold" style={{ color: C.accent }}>{candidate.leetcode.rating}</div>
+                        <div className="text-[10px]" style={{ color: C.muted }}>contest rating</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: 'Hard',   value: candidate.leetcode.hard,   color: '#EF4444' },
+                        { label: 'Medium', value: candidate.leetcode.medium, color: C.amber },
+                        { label: 'Easy',   value: candidate.leetcode.easy,   color: C.emerald },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} className="text-center rounded-sm py-2.5"
+                          style={{ background: `${color}0A`, border: `1px solid ${color}22` }}>
+                          <div className="text-sm font-bold" style={{ color }}>{value}</div>
+                          <div className="text-[10px]" style={{ color: C.muted }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
               </motion.div>
             )}
 
           </AnimatePresence>
         </div>
 
-        {/* Actions */}
         <div className="p-5 pt-4 flex gap-2.5" style={{ borderTop: `1px solid ${C.border}` }}>
           {state === 'revealed' ? (
             <>
@@ -481,6 +824,13 @@ function CandidateModal({ candidate, onClose, onDecide }) {
             </>
           ) : (
             <>
+              {!simResult && (
+                <button onClick={runSimulation} disabled={simRunning}
+                  className="flex items-center justify-center gap-2 py-3 text-sm rounded-sm transition-all duration-200 px-4"
+                  style={{ border: '1px solid rgba(168,85,247,0.25)', color: '#A855F7', opacity: simRunning ? 0.5 : 1 }}>
+                  <Zap size={13} /> {simRunning ? 'Simulating...' : 'Simulate'}
+                </button>
+              )}
               <button onClick={handleDecline}
                 className="flex-1 flex items-center justify-center gap-2 py-3 text-sm rounded-sm transition-all duration-200"
                 style={{
@@ -499,7 +849,7 @@ function CandidateModal({ candidate, onClose, onDecide }) {
                   opacity: action === 'decline' ? 0.35 : 1,
                 }}>
                 <CheckCircle size={13} />
-                {state === 'deciding' ? 'Revealing...' : 'Accept & Reveal Identity'}
+                {state === 'deciding' ? 'Revealing...' : 'Accept & Reveal'}
               </button>
             </>
           )}
@@ -510,9 +860,10 @@ function CandidateModal({ candidate, onClose, onDecide }) {
 }
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────
-function Sidebar({ active, setActive, inboxCount, navigate }) {
+function Sidebar({ active, setActive, inboxCount, navigate, profile }) {
   const primary = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'talent',    icon: BrainCircuit,    label: 'AI Talent Scout' },
     { id: 'inbox',     icon: Bell,            label: 'Inbox',       badge: inboxCount },
     { id: 'pipeline',  icon: TrendingUp,      label: 'My Referrals' },
     { id: 'bounty',    icon: DollarSign,      label: 'Bounty & Rep' },
@@ -542,7 +893,6 @@ function Sidebar({ active, setActive, inboxCount, navigate }) {
     <aside className="hidden md:flex flex-col justify-between w-56 shrink-0 py-6 px-4"
       style={{ borderRight: `1px solid ${C.border}`, background: C.bg }}>
       <div>
-        {/* Brand */}
         <div className="px-2 mb-7">
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-xs font-bold tracking-widest uppercase" style={{ color: C.accent }}>RefHire</span>
@@ -550,20 +900,17 @@ function Sidebar({ active, setActive, inboxCount, navigate }) {
           <div className="text-[10px] uppercase tracking-widest" style={{ color: C.muted }}>Referrer Portal</div>
         </div>
 
-        {/* Anon tag */}
         <div className="mx-2 mb-5 flex items-center gap-2 px-2.5 py-2 rounded-sm"
           style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}` }}>
           <Lock size={9} style={{ color: C.accent }} />
           <span className="text-[10px] font-medium" style={{ color: C.accent }}>Anonymous mode on</span>
         </div>
 
-        {/* Identity chip */}
         <div className="mx-2 mb-5 px-2.5 py-2 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <div className="text-[10px] mb-0.5" style={{ color: C.muted }}>Visible as</div>
-          <div className="text-[11px] font-medium" style={{ color: C.secondary }}>Sr. React Dev @ FinTech</div>
+          <div className="text-[11px] font-medium" style={{ color: C.secondary }}>{profile?.visibleAs || profile?.alias || 'Anonymous Referrer'}</div>
         </div>
 
-        {/* Primary nav */}
         <div className="mb-2">
           <div className="px-3 mb-1">
             <span className="text-[9px] uppercase tracking-widest" style={{ color: C.muted }}>Main</span>
@@ -573,10 +920,8 @@ function Sidebar({ active, setActive, inboxCount, navigate }) {
           </nav>
         </div>
 
-        {/* Divider */}
         <div className="my-3 mx-2" style={{ borderTop: `1px solid ${C.border}` }} />
 
-        {/* Secondary nav */}
         <div>
           <div className="px-3 mb-1">
             <span className="text-[9px] uppercase tracking-widest" style={{ color: C.muted }}>Account</span>
@@ -587,7 +932,6 @@ function Sidebar({ active, setActive, inboxCount, navigate }) {
         </div>
       </div>
 
-      {/* Sign out */}
       <button onClick={() => navigate?.('landing')}
         className="flex items-center gap-2.5 px-3 py-2.5 text-xs transition-colors"
         style={{ color: C.muted }}>
@@ -598,11 +942,11 @@ function Sidebar({ active, setActive, inboxCount, navigate }) {
 }
 
 // ── Topbar ─────────────────────────────────────────────────────────────────────
-function Topbar({ tab, reputation, totalBounty }) {
+function Topbar({ reputation, totalBounty }) {
   return (
     <div className="sticky top-0 z-20 h-14 px-6 md:px-8 flex items-center justify-between shrink-0"
       style={{ borderBottom:`1px solid ${C.border}`, background:'rgba(10,10,11,0.92)', backdropFilter:'blur(12px)' }}>
-      
+
       <div className="flex items-center gap-2 ml-auto">
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
           style={{ background: C.amberDim, border: `1px solid ${C.amberBorder}` }}>
@@ -625,7 +969,7 @@ function Topbar({ tab, reputation, totalBounty }) {
 }
 
 // ── Dashboard Tab ──────────────────────────────────────────────────────────────
-function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty, setActive }) {
+function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty, setActive, topRecs }) {
   const tiers = [
     { name:'Bronze',   min:0,   max:3.5 },
     { name:'Silver',   min:3.5, max:4.2 },
@@ -641,12 +985,11 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
         <p className="text-sm" style={{ color: C.subtle }}>You are invisible to candidates until you accept their request.</p>
       </motion.div>
 
-      {/* Stats row */}
       <motion.div variants={fadeUp} className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label:'Total Earned',    value:`$${totalBounty.toLocaleString()}`, icon:DollarSign, hi: C.accent },
           { label:'Reputation',      value:reputation,                         icon:Star,       hi: C.amber,  sub:'/ 5.0' },
-          { label:'Successful Hires',value:3,                                  icon:Award,      hi: C.primary },
+          { label:'Successful Refs', value:totalRefs,                          icon:Award,      hi: C.primary },
           { label:'Pending Review',  value:inbox.length,                       icon:Bell,       hi: C.primary },
         ].map(({ label, value, icon:Icon, hi, sub }) => (
           <div key={label} className="rounded-sm p-4 transition-colors"
@@ -663,7 +1006,6 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Trust Protocol */}
         <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-2 mb-1.5">
             <Shield size={13} style={{ color: C.accent }} />
@@ -672,7 +1014,6 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
           <p className="text-xs leading-relaxed mb-4" style={{ color: C.subtle }}>
             Your score rises with successful hires and falls with low-signal referrals. Higher tiers unlock premium profiles and bigger bounty splits.
           </p>
-          {/* Score bar */}
           <div className="h-1 rounded-full mb-3" style={{ background: 'rgba(255,255,255,0.05)' }}>
             <motion.div initial={{ width:0 }} animate={{ width:`${(reputation/5)*100}%` }}
               transition={{ duration:1, ease:[0.22,1,0.36,1] }}
@@ -692,7 +1033,6 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
           </div>
         </motion.div>
 
-        {/* Bounty Syndicate */}
         <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-2">
@@ -709,7 +1049,7 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
             {[
               { label:'Lifetime earned', value:`$${totalBounty.toLocaleString()}`, color: C.accent },
               { label:'Pending release', value:`$${pendingBounty.toLocaleString()}`, color: C.amber },
-              { label:'Next payout',     value:'Oct 1st',  color: C.secondary },
+              { label:'Next payout',     value:'Next month',  color: C.secondary },
             ].map(({ label, value, color }) => (
               <div key={label} className="flex items-center justify-between py-1.5"
                 style={{ borderBottom:`1px solid ${C.border}` }}>
@@ -721,7 +1061,44 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
         </motion.div>
       </div>
 
-      {/* Quick inbox preview */}
+      {/* AI top picks */}
+      {topRecs && topRecs.length > 0 && (
+        <motion.div variants={fadeUp} className="rounded-sm overflow-hidden" style={{ border: `1px solid ${C.accentBorder}`, background: C.accentDim }}>
+          <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.accentBorder}` }}>
+            <div className="flex items-center gap-2">
+              <BrainCircuit size={12} style={{ color: C.accent }} />
+              <span className="text-xs font-semibold" style={{ color: C.accent }}>AI Top Picks</span>
+              <span className="text-[10px]" style={{ color: C.subtle }}>Based on your team stack</span>
+            </div>
+            <button onClick={() => setActive('talent')} className="flex items-center gap-1 text-[10px] transition-colors" style={{ color: C.accent }}>
+              View all <ChevronRight size={11} />
+            </button>
+          </div>
+          {topRecs.map(r => {
+            const mc = r.aiScore >= 80 ? C.accent : r.aiScore >= 65 ? C.amber : C.subtle
+            return (
+              <div key={r.id} className="flex items-center gap-4 px-5 py-3.5 transition-colors" style={{ borderBottom: `1px solid ${C.accentBorder}` }}>
+                <div className="w-7 h-7 rounded-sm flex items-center justify-center shrink-0"
+                  style={{ background: `${r.tier.color}15`, border: `1px solid ${r.tier.color}33` }}>
+                  <Lock size={10} style={{ color: r.tier.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium" style={{ color: C.primary }}>{r.alias}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-sm" style={{ color: r.tier.color, border: `1px solid ${r.tier.color}33`, background: `${r.tier.color}0d` }}>{r.tier.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px]" style={{ color: C.muted }}>{r.currentRole}</span>
+                    {r.matchedSkills.length > 0 && <span className="text-[10px]" style={{ color: C.subtle }}>· {r.matchedSkills.slice(0, 2).join(', ')}</span>}
+                  </div>
+                </div>
+                <div className="text-sm font-bold" style={{ color: mc, ...serif }}>{r.aiScore}%</div>
+              </div>
+            )
+          })}
+        </motion.div>
+      )}
+
       {inbox.length > 0 && (
         <motion.div variants={fadeUp} className="rounded-sm overflow-hidden" style={{ border:`1px solid ${C.border}` }}>
           <div className="flex items-center justify-between px-5 py-3"
@@ -787,7 +1164,6 @@ function InboxTab({ inbox, onSelect }) {
                 onClick={() => onSelect(c)}
                 className="rounded-sm cursor-pointer overflow-hidden transition-colors"
                 style={{ border:`1px solid ${C.border}`, background: C.surface }}>
-                {/* match bar */}
                 <div className="h-0.5" style={{ background:'rgba(255,255,255,0.03)' }}>
                   <div style={{ width:`${c.match}%`, height:'100%', background: mc }} />
                 </div>
@@ -802,13 +1178,15 @@ function InboxTab({ inbox, onSelect }) {
                       <span className="text-[10px] px-1.5 py-0.5 rounded-sm"
                         style={{ background: C.surface, border:`1px solid ${C.border}`, color: C.subtle }}>{c.role}</span>
                     </div>
-                    {/* Explicit Target Req Display in Row */}
                     <div className="flex items-center gap-1.5 mt-1.5 mb-1.5">
                        <Target size={10} style={{ color: C.accent }} />
                        <span className="text-[9px]" style={{ color: C.subtle }}>Target Role: {c.targetReq}</span>
                     </div>
-                    <div className="flex items-center gap-2.5">
-                      {c.skills.slice(0,3).map(s => (
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      {c.aiScoring?.matchedSkills?.slice(0, 3).map(s => (
+                        <span key={s} className="text-[10px] px-1 py-0.5 rounded-sm" style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, color: C.accent }}>{s}</span>
+                      ))}
+                      {(!c.aiScoring?.matchedSkills?.length) && c.skills.slice(0, 3).map(s => (
                         <span key={s} className="text-[10px]" style={{ color: C.muted }}>{s}</span>
                       ))}
                       {c.skills.length > 3 && <span className="text-[10px]" style={{ color: C.muted }}>+{c.skills.length - 3} more</span>}
@@ -833,10 +1211,10 @@ function InboxTab({ inbox, onSelect }) {
 }
 
 // ── Pipeline Tab ───────────────────────────────────────────────────────────────
-function PipelineTab() {
+function PipelineTab({ pipeline }) {
   const [filter, setFilter] = useState('all')
-  const filters = ['all', 'hired', 'offer_extended', 'interviewing', 'declined']
-  const visible  = filter === 'all' ? PIPELINE : PIPELINE.filter(r => r.status === filter)
+  const filters = ['all', 'hired', 'offer_extended', 'interviewing', 'referred', 'declined']
+  const visible  = filter === 'all' ? pipeline : pipeline.filter(r => r.status === filter)
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
@@ -845,7 +1223,6 @@ function PipelineTab() {
         <p className="text-sm" style={{ color: C.subtle }}>Track candidates you have forwarded to HR and their pipeline stage.</p>
       </motion.div>
 
-      {/* Filters */}
       <motion.div variants={fadeUp} className="flex gap-1.5 flex-wrap">
         {filters.map(f => (
           <button key={f} onClick={() => setFilter(f)}
@@ -860,7 +1237,6 @@ function PipelineTab() {
         ))}
       </motion.div>
 
-      {/* Table header */}
       <motion.div variants={fadeUp} className="rounded-sm overflow-hidden" style={{ border:`1px solid ${C.border}` }}>
         <div className="grid grid-cols-12 gap-4 px-5 py-3" style={{ borderBottom:`1px solid ${C.border}`, background: C.surface }}>
           {['Candidate','Role','Pipeline','Status','Bounty'].map((h, i) => (
@@ -876,8 +1252,8 @@ function PipelineTab() {
               <div key={r.id} className="grid grid-cols-12 gap-4 items-center px-5 py-4 transition-colors"
                 style={{ borderBottom:`1px solid ${C.border}` }}>
                 <div className="col-span-3 min-w-0">
-                  <p className="text-xs font-semibold truncate" style={{ color: C.primary }}>{r.name}</p>
-                  <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>{r.date}</p>
+                  <p className="text-xs font-semibold truncate" style={{ color: C.primary }}>{r.candidateName}</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>{timeAgo(r.createdAt)}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-[11px] truncate" style={{ color: C.subtle }}>{r.role}</p>
@@ -904,6 +1280,9 @@ function PipelineTab() {
               </div>
             )
           })}
+          {visible.length === 0 && (
+            <div className="px-5 py-10 text-center text-sm" style={{ color: C.muted }}>No referrals in this category.</div>
+          )}
         </div>
       </motion.div>
     </motion.div>
@@ -927,7 +1306,6 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
         <p className="text-sm" style={{ color: C.subtle }}>Your trust score and fractional referral earnings.</p>
       </motion.div>
 
-      {/* Score card */}
       <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border:`1px solid ${C.border}` }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -948,7 +1326,6 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
             transition={{ duration:1.1, ease:[0.22,1,0.36,1] }}
             className="h-full rounded-full" style={{ background: C.accent }} />
         </div>
-        {/* Tier table */}
         <div className="grid grid-cols-4 gap-2">
           {tiers.map(t => (
             <div key={t.name} className="rounded-sm p-2.5 transition-all"
@@ -965,7 +1342,6 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
         </div>
       </motion.div>
 
-      {/* Earnings */}
       <motion.div variants={fadeUp} className="grid grid-cols-3 gap-3">
         {[
           { label:'Lifetime Earned', value:`$${totalBounty.toLocaleString()}`, color: C.accent,   icon: DollarSign },
@@ -982,7 +1358,6 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
         ))}
       </motion.div>
 
-      {/* Mechanics */}
       <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border:`1px solid ${C.border}` }}>
         <div className="flex items-center gap-2 mb-4">
           <BarChart2 size={13} style={{ color: C.accent }} />
@@ -1008,16 +1383,38 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
   )
 }
 
-// ── Settings placeholder ───────────────────────────────────────────────────────
-function SettingsTab() {
-  const [stack, setStack] = useState(['React', 'Node.js', 'AWS', 'TypeScript'])
+// ── Settings Tab ───────────────────────────────────────────────────────────────
+function SettingsTab({ profile, onUpdate }) {
+  const [stack, setStack] = useState(profile?.stack || [])
   const [input, setInput] = useState('')
-  const addTag = () => { if (input.trim()) { setStack(s => [...s, input.trim()]); setInput('') } }
-
-  // New state for Active Requisitions
-  const [reqs, setReqs] = useState(['Senior Frontend Engineer', 'Full-Stack Developer'])
+  const [reqs, setReqs]   = useState(profile?.activeReqs || [])
   const [reqInput, setReqInput] = useState('')
-  const addReq = () => { if (reqInput.trim()) { setReqs(r => [...r, reqInput.trim()]); setReqInput('') } }
+
+  const addTag = () => {
+    if (!input.trim()) return
+    const updated = [...stack, input.trim()]
+    setStack(updated)
+    setInput('')
+    onUpdate({ stack: updated })
+  }
+  const removeTag = (tag) => {
+    const updated = stack.filter(t => t !== tag)
+    setStack(updated)
+    onUpdate({ stack: updated })
+  }
+
+  const addReq = () => {
+    if (!reqInput.trim()) return
+    const updated = [...reqs, reqInput.trim()]
+    setReqs(updated)
+    setReqInput('')
+    onUpdate({ activeReqs: updated })
+  }
+  const removeReq = (req) => {
+    const updated = reqs.filter(t => t !== req)
+    setReqs(updated)
+    onUpdate({ activeReqs: updated })
+  }
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5 max-w-xl">
@@ -1030,9 +1427,9 @@ function SettingsTab() {
         { title:'Anonymous Profile', desc:'Your public identity on the platform', content:(
           <div className="space-y-3">
             {[
-              { label:'Visible as', value:'Senior React Dev @ FinTech Unicorn' },
-              { label:'Corporate email', value:'•••••@company.com', verified: true },
-              { label:'Anonymous since', value:'Sep 12, 2024' },
+              { label:'Visible as', value: profile?.visibleAs || profile?.alias || '—' },
+              { label:'Corporate email', value: profile?.email ? '•••••@' + profile.email.split('@')[1] : '—', verified: !!profile?.email },
+              { label:'Anonymous since', value: profile?.anonymousSince ? new Date(profile.anonymousSince.toDate?.() || profile.anonymousSince).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '—' },
             ].map(({ label, value, verified }) => (
               <div key={label} className="flex items-center justify-between py-2.5" style={{ borderBottom:`1px solid ${C.border}` }}>
                 <span className="text-xs" style={{ color: C.subtle }}>{label}</span>
@@ -1054,8 +1451,8 @@ function SettingsTab() {
                     <Target size={12} style={{ color: C.accent }} />
                     <span className="text-[11px]" style={{ color: C.primary }}>{r}</span>
                   </div>
-                  <button onClick={() => setReqs(prev => prev.filter(t => t !== r))}>
-                    <X size={12} style={{ color: C.subtle }} hover={{ color: C.primary }} />
+                  <button onClick={() => removeReq(r)}>
+                    <X size={12} style={{ color: C.subtle }} />
                   </button>
                 </div>
               ))}
@@ -1065,8 +1462,7 @@ function SettingsTab() {
                 onKeyDown={e => e.key === 'Enter' && addReq()}
                 placeholder="e.g. Senior Product Manager..."
                 className="flex-1 text-xs px-3 py-2 rounded-sm outline-none"
-                style={{ background: C.surface, border:`1px solid ${C.border}`, color: C.primary,
-                         caretColor: C.accent }} />
+                style={{ background: C.surface, border:`1px solid ${C.border}`, color: C.primary, caretColor: C.accent }} />
               <button onClick={addReq} className="px-3 py-2 text-xs rounded-sm"
                 style={{ background: C.accentDim, border:`1px solid ${C.accentBorder}`, color: C.accent }}>
                 Add Req
@@ -1081,7 +1477,7 @@ function SettingsTab() {
                 <div key={s} className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
                   style={{ background: C.accentDim, border:`1px solid ${C.accentBorder}` }}>
                   <span className="text-[11px]" style={{ color: C.accent }}>{s}</span>
-                  <button onClick={() => setStack(prev => prev.filter(t => t !== s))}>
+                  <button onClick={() => removeTag(s)}>
                     <X size={10} style={{ color: C.accent }} />
                   </button>
                 </div>
@@ -1092,8 +1488,7 @@ function SettingsTab() {
                 onKeyDown={e => e.key === 'Enter' && addTag()}
                 placeholder="Add technology..."
                 className="flex-1 text-xs px-3 py-2 rounded-sm outline-none"
-                style={{ background: C.surface, border:`1px solid ${C.border}`, color: C.primary,
-                         caretColor: C.accent }} />
+                style={{ background: C.surface, border:`1px solid ${C.border}`, color: C.primary, caretColor: C.accent }} />
               <button onClick={addTag} className="px-3 py-2 text-xs rounded-sm"
                 style={{ background: C.accentDim, border:`1px solid ${C.accentBorder}`, color: C.accent }}>
                 Add Tag
@@ -1115,10 +1510,10 @@ function SettingsTab() {
   )
 }
 
-// ── Help placeholder ───────────────────────────────────────────────────────────
+// ── Help Tab ───────────────────────────────────────────────────────────────────
 function HelpTab() {
   const faqs = [
-    { q:'How is the AI match score calculated?', a:'The match score compares the candidate\'s verified skills, GitBranch activity patterns, and LeetCode rating against the tech stack you\'ve configured for your team. It also factors in your past successful referral profiles.' },
+    { q:'How is the AI match score calculated?', a:'The match score compares the candidate\'s verified skills, GitHub activity patterns, and LeetCode rating against the tech stack you\'ve configured for your team. It also factors in your past successful referral profiles.' },
     { q:'When does my identity get revealed to the candidate?', a:'Only when you explicitly click "Accept & Reveal Identity." The candidate is never shown your profile unless you initiate. You remain invisible otherwise.' },
     { q:'How are bounties paid out?', a:'Bounties are released 30 days after the hire confirmation date, subject to your company\'s standard referral policy. RefHire takes no additional cut beyond the platform fee already agreed with your employer.' },
     { q:'What happens to my reputation if I pass on a candidate?', a:'Passing (declining) a candidate has no direct reputation impact. Reputation only changes based on outcomes of candidates you accepted and forwarded to HR.' },
@@ -1144,57 +1539,560 @@ function HelpTab() {
   )
 }
 
+// ── Score Ring ──────────────────────────────────────────────────────────────────
+function ScoreRing({ score, size = 64, strokeWidth = 4, color }) {
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (score / 100) * circumference
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth} />
+        <motion.circle
+          cx={size/2} cy={size/2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
+          strokeLinecap="round" strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-base font-bold" style={{ color, ...serif }}>{score}</span>
+      </div>
+    </div>
+  )
+}
+
+function FactorBar({ label, score, weight, delay = 0 }) {
+  const barColor = score >= 70 ? C.accent : score >= 45 ? C.amber : C.subtle
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5 text-xs">
+        <span style={{ color: C.secondary }}>{label}</span>
+        <div className="flex items-center gap-2">
+          <span style={{ color: C.muted }}>{Math.round(weight * 100)}%</span>
+          <span className="font-semibold w-6 text-right" style={{ color: C.primary }}>{score}</span>
+        </div>
+      </div>
+      <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${score}%` }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay }}
+          className="h-full rounded-full"
+          style={{ backgroundColor: barColor }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── AI Talent Scout Tab ─────────────────────────────────────────────────────────
+function TalentScoutTab({ recommendations, onSelect }) {
+  const [expanded, setExpanded] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [running, setRunning] = useState(false)
+
+  const runScan = () => { setRunning(true); setTimeout(() => setRunning(false), 1500) }
+
+  const topRec = recommendations[0]
+  const perfectCount = recommendations.filter(r => r.aiScore >= 85).length
+  const strongCount = recommendations.filter(r => r.aiScore >= 70 && r.aiScore < 85).length
+  const avgScore = recommendations.length > 0
+    ? Math.round(recommendations.reduce((s, r) => s + r.aiScore, 0) / recommendations.length)
+    : 0
+
+  let filtered = filter === 'all'
+    ? recommendations
+    : filter === 'perfect' ? recommendations.filter(r => r.aiScore >= 85)
+    : filter === 'strong'  ? recommendations.filter(r => r.aiScore >= 70 && r.aiScore < 85)
+    : filter === 'good'    ? recommendations.filter(r => r.aiScore >= 50 && r.aiScore < 70)
+    : recommendations.filter(r => r.aiScore < 50)
+
+  if (search) {
+    const q = search.toLowerCase()
+    filtered = filtered.filter(r =>
+      r.skills.some(s => s.toLowerCase().includes(q)) ||
+      r.currentRole.toLowerCase().includes(q) ||
+      r.lookingFor.toLowerCase().includes(q) ||
+      r.alias.toLowerCase().includes(q)
+    )
+  }
+
+  return (
+    <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
+      <motion.div variants={fadeUp}>
+        <div className="flex items-center gap-2 mb-1">
+          <BrainCircuit size={15} style={{ color: C.accent }} />
+          <h1 className="text-xl font-bold" style={{ color: C.primary, ...serif }}>AI Talent Scout</h1>
+        </div>
+        <p className="text-sm" style={{ color: C.subtle }}>
+          Multi-factor scoring: skill match (40%), role fit (20%), experience (15%), profile depth (15%), activity signal (10%).
+        </p>
+      </motion.div>
+
+      {/* Stats */}
+      <motion.div variants={fadeUp} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Perfect candidates', value: String(perfectCount), sub: 'Score 85+', hi: C.accent },
+          { label: 'Strong candidates', value: String(strongCount), sub: 'Score 70–84', hi: C.emerald },
+          { label: 'Avg. AI score', value: String(avgScore), sub: 'Across all candidates', hi: C.amber },
+          { label: 'Total scanned', value: String(recommendations.length), sub: 'Candidates analyzed', hi: C.secondary },
+        ].map(s => (
+          <div key={s.label} className="rounded-sm p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-[10px] uppercase tracking-widest" style={{ color: C.muted }}>{s.label}</span>
+            </div>
+            <div className="text-2xl font-bold leading-none" style={{ color: s.hi, ...serif }}>{s.value}</div>
+            <p className="text-[11px] mt-1.5" style={{ color: C.muted }}>{s.sub}</p>
+          </div>
+        ))}
+      </motion.div>
+
+      {/* Top candidate deep-dive */}
+      {topRec && (
+        <motion.div variants={fadeUp} className="rounded-sm overflow-hidden"
+          style={{ border: `1px solid ${C.accentBorder}`, background: C.accentDim }}>
+          <div className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: `1px solid ${C.accentBorder}` }}>
+            <ScoreRing score={topRec.aiScore} color={topRec.tier.color} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm"
+                  style={{ color: topRec.tier.color, border: `1px solid ${topRec.tier.color}33`, background: `${topRec.tier.color}0d` }}>
+                  {topRec.tier.label}
+                </span>
+                <Lock size={9} style={{ color: C.accent }} />
+                <span className="text-[10px]" style={{ color: C.accent }}>Anonymous</span>
+              </div>
+              <p className="text-[15px] font-semibold" style={{ color: C.primary }}>{topRec.alias}</p>
+              <p className="text-[11px] mt-0.5" style={{ color: C.subtle }}>
+                {topRec.currentRole}{topRec.yearsExperience ? ` · ${topRec.yearsExperience} yrs exp` : ''}
+                {topRec.location ? ` · ${topRec.location}` : ''}
+              </p>
+            </div>
+            <button onClick={() => onSelect(topRec)}
+              className="shrink-0 text-[12px] font-semibold px-4 py-2 rounded-sm transition-all duration-200"
+              style={{ background: C.accent, color: '#0A0A0B' }}>
+              Review
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4">
+            <div className="space-y-3">
+              <FactorBar label="Skill Match" score={topRec.breakdown.skill.score} weight={topRec.breakdown.skill.weight} delay={0.1} />
+              <FactorBar label="Domain / Role Fit" score={topRec.breakdown.domain.score} weight={topRec.breakdown.domain.weight} delay={0.2} />
+              <FactorBar label="Experience Alignment" score={topRec.breakdown.experience.score} weight={topRec.breakdown.experience.weight} delay={0.3} />
+              <FactorBar label="Profile Depth" score={topRec.breakdown.profileDepth.score} weight={topRec.breakdown.profileDepth.weight} delay={0.4} />
+              <FactorBar label="Activity Signal" score={topRec.breakdown.activity.score} weight={topRec.breakdown.activity.weight} delay={0.5} />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {topRec.matchedSkills.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: C.muted }}>Matching Skills ({topRec.matchedSkills.length})</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {topRec.matchedSkills.map(s => (
+                      <span key={s} className="text-[10px] px-2 py-0.5 rounded-sm"
+                        style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, color: C.accent }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {topRec.missingSkills.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: C.muted }}>Missing from their stack ({topRec.missingSkills.length})</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {topRec.missingSkills.map(s => (
+                      <span key={s} className="text-[10px] px-2 py-0.5 rounded-sm"
+                        style={{ background: C.amberDim, border: `1px solid ${C.amberBorder}`, color: C.amber }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px] pt-1" style={{ color: C.subtle }}>
+              {topRec.breakdown.domain.insight && <span>{topRec.breakdown.domain.insight}</span>}
+              {topRec.breakdown.experience.insight && <span>{topRec.breakdown.experience.insight}</span>}
+              {topRec.breakdown.profileDepth.insight && <span>{topRec.breakdown.profileDepth.insight}</span>}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Filter + search + list */}
+      <motion.div variants={fadeUp} className="rounded-sm overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+        <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-3" style={{ borderBottom: `1px solid ${C.border}`, background: C.surface }}>
+          <div>
+            <p className="text-[13px] font-semibold" style={{ color: C.primary }}>All Candidates</p>
+            <p className="text-[11px] mt-0.5" style={{ color: C.subtle }}>Click any row for AI score breakdown</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+              <Search size={10} style={{ color: C.muted }} />
+              <input
+                value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Filter skills, role..."
+                className="text-[11px] bg-transparent outline-none w-28" style={{ color: C.primary }}
+              />
+              {search && <button onClick={() => setSearch('')}><X size={10} style={{ color: C.muted }} /></button>}
+            </div>
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'perfect', label: '85+' },
+              { id: 'strong', label: '70+' },
+              { id: 'good', label: '50+' },
+            ].map(f => (
+              <button key={f.id} onClick={() => setFilter(f.id)}
+                className="text-[11px] px-2.5 py-1 rounded-sm transition-colors"
+                style={{
+                  background: filter === f.id ? C.accentDim : 'transparent',
+                  border: `1px solid ${filter === f.id ? C.accentBorder : C.border}`,
+                  color: filter === f.id ? C.accent : C.subtle,
+                }}>
+                {f.label}
+              </button>
+            ))}
+            <button onClick={runScan} disabled={running}
+              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-sm transition-colors"
+              style={{ border: `1px solid ${C.border}`, color: C.subtle, opacity: running ? 0.5 : 1 }}>
+              <RefreshCw size={10} className={running ? 'animate-spin' : ''} />
+              {running ? 'Scanning...' : 'Re-scan'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          {filtered.map((rec, i) => (
+            <div key={rec.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+              <div
+                onClick={() => setExpanded(expanded === rec.id ? null : rec.id)}
+                className="px-5 py-4 flex items-center gap-4 cursor-pointer transition-colors"
+                style={{ ':hover': { background: C.surfaceHover } }}
+                onMouseEnter={e => e.currentTarget.style.background = C.surfaceHover}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span className="text-[11px] w-5 shrink-0 font-medium" style={{ color: C.muted }}>#{i+1}</span>
+                <ScoreRing score={rec.aiScore} size={42} strokeWidth={3} color={rec.tier.color} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Lock size={9} style={{ color: C.accent }} />
+                    <p className="text-[13px] font-medium truncate" style={{ color: C.primary }}>{rec.alias}</p>
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-sm shrink-0"
+                      style={{ color: rec.tier.color, border: `1px solid ${rec.tier.color}33`, background: `${rec.tier.color}0d` }}>
+                      {rec.tier.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[11px]" style={{ color: C.subtle }}>{rec.currentRole || 'Engineer'}</span>
+                    {rec.yearsExperience && <span className="text-[10px]" style={{ color: C.muted }}>· {rec.yearsExperience} yrs</span>}
+                    {rec.location && <span className="text-[10px]" style={{ color: C.muted }}>· {rec.location}</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {rec.skills.slice(0, 5).map(s => (
+                      <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-sm"
+                        style={{
+                          background: rec.matchedSkills.includes(s.toLowerCase().replace(/[\s.]+/g, ' ')) ? C.accentDim : C.surface,
+                          border: `1px solid ${rec.matchedSkills.includes(s.toLowerCase().replace(/[\s.]+/g, ' ')) ? C.accentBorder : C.border}`,
+                          color: rec.matchedSkills.includes(s.toLowerCase().replace(/[\s.]+/g, ' ')) ? C.accent : C.subtle,
+                        }}>
+                        {s}
+                      </span>
+                    ))}
+                    {rec.skills.length > 5 && <span className="text-[10px]" style={{ color: C.muted }}>+{rec.skills.length - 5}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={e => { e.stopPropagation(); onSelect(rec) }}
+                    className="text-[11px] font-medium px-3 py-1.5 rounded-sm transition-all duration-200"
+                    style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, color: C.accent }}>
+                    Review
+                  </button>
+                  <ChevronDown size={13} className={`transition-transform ${expanded === rec.id ? 'rotate-180' : ''}`} style={{ color: C.muted }} />
+                </div>
+              </div>
+
+              {/* Expandable breakdown */}
+              <AnimatePresence>
+                {expanded === rec.id && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-5 pb-5 pt-1 ml-10 space-y-3" style={{ borderLeft: `1px solid ${C.border}` }}>
+                      <p className="text-[10px] uppercase tracking-wider" style={{ color: C.muted }}>AI Score Breakdown</p>
+                      <div className="space-y-2.5">
+                        <FactorBar label="Skill Match" score={rec.breakdown.skill.score} weight={rec.breakdown.skill.weight} delay={0} />
+                        <FactorBar label="Domain / Role Fit" score={rec.breakdown.domain.score} weight={rec.breakdown.domain.weight} delay={0.05} />
+                        <FactorBar label="Experience Alignment" score={rec.breakdown.experience.score} weight={rec.breakdown.experience.weight} delay={0.1} />
+                        <FactorBar label="Profile Depth" score={rec.breakdown.profileDepth.score} weight={rec.breakdown.profileDepth.weight} delay={0.15} />
+                        <FactorBar label="Activity Signal" score={rec.breakdown.activity.score} weight={rec.breakdown.activity.weight} delay={0.2} />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {rec.matchedSkills.length > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: C.muted }}>Matching Skills</p>
+                            <div className="flex flex-wrap gap-1">
+                              {rec.matchedSkills.map(s => (
+                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-sm"
+                                  style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, color: C.accent }}>{s}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {rec.missingSkills.length > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: C.muted }}>Gap Skills</p>
+                            <div className="flex flex-wrap gap-1">
+                              {rec.missingSkills.map(s => (
+                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-sm"
+                                  style={{ background: C.amberDim, border: `1px solid ${C.amberBorder}`, color: C.amber }}>{s}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px] pt-1" style={{ color: C.subtle }}>
+                        {rec.breakdown.domain.insight && <span>{rec.breakdown.domain.insight}</span>}
+                        {rec.breakdown.experience.insight && <span>{rec.breakdown.experience.insight}</span>}
+                        {rec.breakdown.profileDepth.insight && <span>{rec.breakdown.profileDepth.insight}</span>}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-5 py-10 text-center text-sm" style={{ color: C.muted }}>
+              {recommendations.length === 0
+                ? 'No candidates found. Update your team stack in Preferences to see matches.'
+                : 'No candidates in this tier. Try a different filter.'}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ── Root ───────────────────────────────────────────────────────────────────────
 export default function EmployeeDashboard({ navigate }) {
-  const [tab,      setTab]      = useState('dashboard')
-  const [inbox,    setInbox]    = useState(INBOX_CANDIDATES)
-  const [selected, setSelected] = useState(null)
-  const [rep,      setRep]      = useState(4.6)
-  const [refs,     setRefs]     = useState(14)
+  const { user }              = useAuth()
+  const [tab, setTab]               = useState('dashboard')
+  const [profile, setProfile]       = useState(null)
+  const [inbox, setInbox]           = useState([])
+  const [pipeline, setPipeline]     = useState([])
+  const [candidates, setCandidates]           = useState([])
+  const [shadowInterviews, setShadowInterviews] = useState([])
+  const [selected, setSelected]               = useState(null)
+  const [dataReady, setDataReady]             = useState(false)
 
-  const totalBounty   = 3500
-  const pendingBounty = 2800
-
-  const handleDecide = (id, choice) => {
-    setInbox(prev => prev.filter(c => c.id !== id))
-    if (choice === 'accept') {
-      setRefs(n => n + 1)
-      setRep(r => Math.min(5, parseFloat((r + 0.05).toFixed(2))))
+  useEffect(() => {
+    if (!user) return
+    const unsubs = []
+    let loaded = { profile: false, inbox: false, pipeline: false, candidates: false }
+    const checkReady = () => {
+      if (Object.values(loaded).every(Boolean)) setDataReady(true)
     }
+
+    unsubs.push(subscribeEmployeeProfile(user.uid, (p) => {
+      setProfile(p)
+      loaded.profile = true
+      checkReady()
+    }))
+
+    unsubs.push(subscribeEmployeeInbox(user.uid, async (rawRequests) => {
+      const enriched = await Promise.all(
+        rawRequests.map(async (req) => {
+          const candidateProfile = await getCandidateProfile(req.candidateId)
+          const candidateIdShort = req.candidateId.substring(0, 4).toUpperCase()
+          return {
+            id:        req.id,
+            alias:     `Candidate #${candidateIdShort}`,
+            realName:  candidateProfile?.name || 'Unknown',
+            email:     candidateProfile?.email || '',
+            match:     req.match,
+            role:      candidateProfile?.currentRole || 'Engineer',
+            targetReq: req.targetRole,
+            yoe:       candidateProfile?.yearsExperience || 2,
+            pitch:     req.pitch || '',
+            skills:    candidateProfile?.skills || [],
+            GitBranch: generateMockGitBranch(candidateProfile?.skills),
+            leetcode:  generateMockLeetCode(),
+            receivedAt: timeAgo(req.createdAt),
+            requestId: req.id,
+            _candidateId: req.candidateId,
+            _candidateProfile: candidateProfile,
+          }
+        })
+      )
+      setInbox(enriched)
+      loaded.inbox = true
+      checkReady()
+    }))
+
+    unsubs.push(subscribeEmployeePipeline(user.uid, (p) => {
+      setPipeline(p)
+      loaded.pipeline = true
+      checkReady()
+    }))
+
+    unsubs.push(subscribeAllCandidates((c) => {
+      setCandidates(c)
+      loaded.candidates = true
+      checkReady()
+    }))
+
+    unsubs.push(subscribeEmployeeShadowInterviews(user.uid, (ints) => {
+      setShadowInterviews(ints)
+    }))
+
+    return () => unsubs.forEach(u => u())
+  }, [user])
+
+  const employerRecs = generateEmployerRecommendations(profile, candidates)
+
+  const enrichedInbox = inbox.map(item => {
+    const scoring = item._candidateProfile && profile
+      ? scoreCandidate(item._candidateProfile, profile)
+      : null
+    return {
+      ...item,
+      match: scoring?.aiScore ?? item.match,
+      aiScoring: scoring,
+      aiInsight: scoring
+        ? `AI score ${scoring.aiScore}% — skill match ${scoring.breakdown.skill.score}%, role fit ${scoring.breakdown.domain.score}%. ${scoring.matchedSkills.length > 0 ? `Shares: ${scoring.matchedSkills.slice(0,3).join(', ')}.` : ''} ${item._candidateProfile?.skills?.length > 3 ? 'Broad skill set indicates versatility.' : 'Focused skill set indicates specialization.'}`
+        : `Match score of ${item.match}% based on tech stack overlap.`,
+    }
+  })
+
+  const reputation    = profile?.reputation ?? 3.5
+  const totalRefs     = profile?.totalRefs ?? 0
+  const totalBounty   = profile?.totalBounty ?? 0
+  const pendingBounty = profile?.pendingBounty ?? 0
+
+  const handleSelectTalent = (rec) => {
+    const normalized = {
+      id:        rec.id,
+      alias:     rec.alias,
+      realName:  rec.name || 'Unknown',
+      email:     rec.email || '',
+      match:     rec.aiScore,
+      role:      rec.currentRole || 'Engineer',
+      targetReq: rec.lookingFor || rec.currentRole || 'General',
+      yoe:       rec.yearsExperience || 2,
+      pitch:     rec.bio || '',
+      aiInsight: `AI score ${rec.aiScore}% — skill match ${rec.breakdown.skill.score}%, role fit ${rec.breakdown.domain.score}%. ${rec.matchedSkills.length > 0 ? `Shares: ${rec.matchedSkills.slice(0, 3).join(', ')}.` : ''}`,
+      skills:    rec.skills || [],
+      GitBranch: generateMockGitBranch(rec.skills),
+      leetcode:  generateMockLeetCode(),
+      receivedAt: 'Just now',
+      requestId: null,
+      _candidateId: rec.id,
+      _candidateProfile: { skills: rec.skills, yearsExperience: rec.yearsExperience },
+      _fromTalentScout: true,
+    }
+    setSelected(normalized)
+  }
+
+  const handleRequestInterview = async (candidateId, targetRole, candidateSkills, yearsExp) => {
+    try {
+      const { questions } = generateQuestions(candidateSkills || [], targetRole || 'Software Engineer', yearsExp || 2)
+      await createShadowInterview({
+        candidateId,
+        employeeId: user.uid,
+        targetRole: targetRole || 'Software Engineer',
+        questions,
+      })
+    } catch (err) {
+      console.error('Failed to create shadow interview:', err)
+    }
+  }
+
+  const getInterviewForCandidate = (candidateId) => {
+    return shadowInterviews.find(i => i.candidateId === candidateId) || null
+  }
+
+  const handleDecide = async (candidateId, choice) => {
+    const item = enrichedInbox.find(c => c.id === candidateId)
+    if (!item) return
+
+    try {
+      if (choice === 'accept') {
+        await acceptRequest(item.requestId, user.uid)
+      } else {
+        await declineRequest(item.requestId)
+      }
+    } catch (err) {
+      console.error('Decision failed:', err)
+    }
+  }
+
+  const handleUpdateProfile = async (data) => {
+    try {
+      await updateEmployeeProfile(user.uid, data)
+    } catch (err) {
+      console.error('Failed to update profile:', err)
+    }
+  }
+
+  if (!dataReady) {
+    return (
+      <div className="flex h-screen items-center justify-center" style={{ background: C.bg }}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-6 h-6 border-2 border-[#C8FF00] border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-[#6B6966] tracking-widest uppercase">Loading dashboard</span>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: C.bg, fontFamily:"'DM Sans', sans-serif" }}>
-      <Sidebar active={tab} setActive={setTab} inboxCount={inbox.length} navigate={navigate} />
+      <Sidebar active={tab} setActive={setTab} inboxCount={enrichedInbox.length} navigate={navigate} profile={profile} />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Topbar tab={tab} reputation={rep} totalBounty={`$${totalBounty.toLocaleString()}`} />
+        <Topbar reputation={reputation} totalBounty={`$${totalBounty.toLocaleString()}`} />
         <div className="flex-1 overflow-y-auto px-6 md:px-8 py-7">
           <div className="max-w-4xl mx-auto">
             <AnimatePresence mode="wait">
               {tab === 'dashboard' && (
                 <motion.div key="dash" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
-                  <DashboardTab inbox={inbox} reputation={rep} totalRefs={refs} totalBounty={totalBounty} pendingBounty={pendingBounty} setActive={setTab} />
+                  <DashboardTab inbox={enrichedInbox} reputation={reputation} totalRefs={totalRefs} totalBounty={totalBounty} pendingBounty={pendingBounty} setActive={setTab} topRecs={employerRecs.slice(0, 3)} />
+                </motion.div>
+              )}
+              {tab === 'talent' && (
+                <motion.div key="talent" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
+                  <TalentScoutTab recommendations={employerRecs} onSelect={handleSelectTalent} />
                 </motion.div>
               )}
               {tab === 'inbox' && (
                 <motion.div key="inbox" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
-                  <InboxTab inbox={inbox} onSelect={setSelected} />
+                  <InboxTab inbox={enrichedInbox} onSelect={setSelected} />
                 </motion.div>
               )}
               {tab === 'pipeline' && (
                 <motion.div key="pipeline" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
-                  <PipelineTab />
+                  <PipelineTab pipeline={pipeline} />
                 </motion.div>
               )}
               {tab === 'bounty' && (
                 <motion.div key="bounty" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
-                  <BountyTab reputation={rep} totalRefs={refs} totalBounty={totalBounty} pendingBounty={pendingBounty} />
+                  <BountyTab reputation={reputation} totalRefs={totalRefs} totalBounty={totalBounty} pendingBounty={pendingBounty} />
                 </motion.div>
               )}
               {tab === 'settings' && (
                 <motion.div key="settings" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
-                  <SettingsTab />
+                  <SettingsTab profile={profile} onUpdate={handleUpdateProfile} />
                 </motion.div>
               )}
               {tab === 'help' && (
@@ -1213,6 +2111,9 @@ export default function EmployeeDashboard({ navigate }) {
             candidate={selected}
             onClose={() => setSelected(null)}
             onDecide={(id, choice) => { handleDecide(id, choice); setSelected(null) }}
+            employeeProfile={profile}
+            onRequestInterview={handleRequestInterview}
+            interviewResult={getInterviewForCandidate(selected._candidateId || selected.id?.replace?.(/^req-/, ''))}
           />
         )}
       </AnimatePresence>
