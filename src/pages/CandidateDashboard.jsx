@@ -2,16 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Search, Bell, LogOut, GitBranch, Code2,
-  Zap, Lock, ChevronRight, X, Send, Coins, TrendingUp,
-  CheckCircle, Clock, XCircle, BarChart2, Star, User,
+  Zap, Lock, X, Send, Coins,
+  CheckCircle, Clock, XCircle, Star, User,
   BrainCircuit, Target, BookOpen, Sparkles, ArrowUpRight,
   Eye, RefreshCw, MessageSquare, AlertCircle, TriangleAlert, ChevronDown,
   FileUp, Loader2, FileText, ChevronUp, Mic, ArrowRight, ChevronLeft,
   Shield
 } from 'lucide-react'
-import { parseResume } from '../services/resumeParser'
-import { generateRecommendations } from '../services/recommendationEngine'
-import { evaluateInterview } from '../services/shadowInterview'
+import { fetchAPI, uploadResume } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import {
   subscribeCandidateProfile,
@@ -19,8 +17,6 @@ import {
   subscribeCandidateRequests,
   subscribeActivity,
   subscribeCandidateShadowInterviews,
-  submitShadowAnswers,
-  saveShadowEvaluation,
   createReferralRequest,
   updateCandidateProfile,
 } from '../firebase/firestore'
@@ -562,7 +558,7 @@ function ProfilePage({ profile, onUpdateProfile }) {
     setShowPreview(true)
 
     try {
-      const result = await parseResume(file)
+      const result = await uploadResume(file)
       setParsed(result)
     } catch (err) {
       setParseError(err.message || 'Failed to parse resume.')
@@ -1536,11 +1532,11 @@ function ShadowInterviewPage({ interviews, onComplete }) {
     if (!activeInterview) return
     setSubmitting(true)
     try {
-      await submitShadowAnswers(activeInterview.id, answers)
-
       setEvaluating(true)
-      const result = evaluateInterview(activeInterview.questions, answers)
-      await saveShadowEvaluation(activeInterview.id, result)
+      await fetchAPI('/shadow-interview/submit', {
+        interviewId: activeInterview.id,
+        answers,
+      })
 
       setEvaluating(false)
       setSubmitting(false)
@@ -1825,11 +1821,20 @@ export default function CandidateDashboard({ navigate }) {
     return () => unsubs.forEach(u => u())
   }, [user])
 
+  const [recommendations, setRecommendations] = useState([])
+
+  useEffect(() => {
+    if (!user || !profile) return
+    let cancelled = false
+    fetchAPI('/recommendations/candidate', { candidateId: user.uid })
+      .then(recs => { if (!cancelled) setRecommendations(recs) })
+      .catch(err => console.error('Failed to fetch recommendations:', err))
+    return () => { cancelled = true }
+  }, [user, profile, employees])
+
   const tokens = profile?.tokens ?? 3
 
   const requestedEmployeeIds = new Set(requests.map(r => r.employeeId))
-
-  const recommendations = generateRecommendations(profile, employees, requests)
 
   const referrers = recommendations.map(rec => ({
     id:           rec.id,

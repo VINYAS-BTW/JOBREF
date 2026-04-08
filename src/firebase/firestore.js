@@ -1,7 +1,7 @@
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc,
+  doc, getDoc, updateDoc,
   collection, query, where, orderBy, onSnapshot,
-  addDoc, serverTimestamp, getDocs, increment,
+  addDoc, serverTimestamp, increment,
 } from 'firebase/firestore'
 import { db } from './config'
 
@@ -30,7 +30,7 @@ export function subscribeEmployeeProfile(uid, callback) {
   })
 }
 
-export async function getEmployeeProfile(uid) {
+async function getEmployeeProfile(uid) {
   const snap = await getDoc(doc(db, 'employeeProfiles', uid))
   return snap.exists() ? { id: snap.id, ...snap.data() } : null
 }
@@ -101,7 +101,7 @@ export function subscribeEmployeeInbox(employeeId, callback) {
   })
 }
 
-export async function updateRequestStatus(requestId, status) {
+async function updateRequestStatus(requestId, status) {
   return updateDoc(doc(db, 'referralRequests', requestId), {
     status,
     updatedAt: serverTimestamp(),
@@ -173,55 +173,7 @@ export function subscribeActivity(userId, callback) {
   })
 }
 
-export async function addActivity(userId, type, text) {
-  return addDoc(collection(db, 'activity'), {
-    userId,
-    type,
-    text,
-    createdAt: serverTimestamp(),
-  })
-}
-
 // ─── Shadow Interviews ──────────────────────────────────────────────────────
-
-export async function createShadowInterview({ candidateId, employeeId, targetRole, questions }) {
-  const ref = await addDoc(collection(db, 'shadowInterviews'), {
-    candidateId,
-    employeeId,
-    targetRole,
-    questions,
-    answers: [],
-    scores: null,
-    status: 'generated',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  })
-
-  await addDoc(collection(db, 'activity'), {
-    userId: candidateId,
-    type: 'interview',
-    text: `You have a new Shadow Interview to complete for the ${targetRole} role.`,
-    createdAt: serverTimestamp(),
-  })
-
-  return ref.id
-}
-
-export async function submitShadowAnswers(interviewId, answers) {
-  return updateDoc(doc(db, 'shadowInterviews', interviewId), {
-    answers,
-    status: 'submitted',
-    updatedAt: serverTimestamp(),
-  })
-}
-
-export async function saveShadowEvaluation(interviewId, scores) {
-  return updateDoc(doc(db, 'shadowInterviews', interviewId), {
-    scores,
-    status: 'evaluated',
-    updatedAt: serverTimestamp(),
-  })
-}
 
 export function subscribeCandidateShadowInterviews(candidateId, callback) {
   const q = query(
@@ -247,25 +199,3 @@ export function subscribeEmployeeShadowInterviews(employeeId, callback) {
   })
 }
 
-export async function getShadowInterview(interviewId) {
-  const snap = await getDoc(doc(db, 'shadowInterviews', interviewId))
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null
-}
-
-// ─── Match Score Calculator ─────────────────────────────────────────────────
-
-export function computeMatchScore(candidateSkills = [], employeeStack = [], employeeReputation = 3.5, employeeRefs = 0) {
-  const candidateSet = new Set(candidateSkills.map(s => s.toLowerCase()))
-  const employeeSet  = new Set(employeeStack.map(s => s.toLowerCase()))
-
-  const overlap = [...candidateSet].filter(s => employeeSet.has(s)).length
-  const totalUnique = new Set([...candidateSet, ...employeeSet]).size
-  const techScore = totalUnique > 0 ? (overlap / totalUnique) * 100 : 0
-
-  const repScore = (employeeReputation / 5) * 100
-  const refScore = Math.min(employeeRefs / 20, 1) * 100
-  const baseScore = 50
-
-  const weighted = (techScore * 0.4) + (repScore * 0.25) + (baseScore * 0.2) + (refScore * 0.15)
-  return Math.round(Math.min(99, Math.max(10, weighted)))
-}

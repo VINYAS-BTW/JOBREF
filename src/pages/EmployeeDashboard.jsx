@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell, TrendingUp, LogOut, CheckCircle, X,
   Star, Shield, Code2, Lock, Users, Zap,
-  DollarSign, Mail, ExternalLink, ArrowRight,
+  DollarSign, Mail, ArrowRight,
   BarChart2, Activity, GitBranch, Terminal,
   Target, Layers, Clock, Briefcase, Mic,
   Sparkles, ChevronRight, ChevronDown, Settings, HelpCircle,
@@ -16,16 +16,13 @@ import {
   subscribeEmployeePipeline,
   subscribeAllCandidates,
   subscribeEmployeeShadowInterviews,
-  createShadowInterview,
   getCandidateProfile,
   acceptRequest,
   declineRequest,
   updateEmployeeProfile,
 } from '../firebase/firestore'
 import { timeAgo } from '../firebase/utils'
-import { generateEmployerRecommendations, scoreCandidate } from '../services/recommendationEngine'
-import { simulateReferral, simulateImprovement } from '../services/referralSimulator'
-import { generateQuestions } from '../services/shadowInterview'
+import { fetchAPI } from '../services/api'
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const C = {
@@ -249,24 +246,21 @@ function CandidateModal({ candidate, onClose, onDecide, employeeProfile, onReque
 
   const matchColor = candidate.match >= 80 ? C.accent : candidate.match >= 65 ? C.amber : C.subtle
 
-  const runSimulation = () => {
+  const runSimulation = async () => {
     setSimRunning(true)
-    setTimeout(() => {
-      const candProfile = candidate._candidateProfile || {
-        name: candidate.realName || candidate.alias,
-        email: candidate.email,
-        skills: candidate.skills,
-        yearsExperience: candidate.yoe,
-        currentRole: candidate.role,
-        lookingFor: candidate.targetReq,
-        bio: candidate.pitch,
-        githubConnected: false,
-      }
-      const result = simulateReferral(candProfile, employeeProfile, candidate.targetReq)
+    try {
+      const result = await fetchAPI('/simulate-referral', {
+        candidateId: candidateId,
+        employeeId: employeeProfile?.id,
+        targetRole: candidate.targetReq || candidate.role,
+      })
       setSimResult(result)
-      setSimRunning(false)
       setTab('simulation')
-    }, 800)
+    } catch (err) {
+      console.error('Simulation failed:', err)
+    } finally {
+      setSimRunning(false)
+    }
   }
 
   const handleDecline = () => {
@@ -1959,21 +1953,49 @@ export default function EmployeeDashboard({ navigate }) {
     return () => unsubs.forEach(u => u())
   }, [user])
 
-  const employerRecs = generateEmployerRecommendations(profile, candidates)
+  const [employerRecs, setEmployerRecs] = useState([])
+  const [enrichedInbox, setEnrichedInbox] = useState([])
 
-  const enrichedInbox = inbox.map(item => {
-    const scoring = item._candidateProfile && profile
-      ? scoreCandidate(item._candidateProfile, profile)
-      : null
-    return {
-      ...item,
-      match: scoring?.aiScore ?? item.match,
-      aiScoring: scoring,
-      aiInsight: scoring
-        ? `AI score ${scoring.aiScore}% — skill match ${scoring.breakdown.skill.score}%, role fit ${scoring.breakdown.domain.score}%. ${scoring.matchedSkills.length > 0 ? `Shares: ${scoring.matchedSkills.slice(0,3).join(', ')}.` : ''} ${item._candidateProfile?.skills?.length > 3 ? 'Broad skill set indicates versatility.' : 'Focused skill set indicates specialization.'}`
-        : `Match score of ${item.match}% based on tech stack overlap.`,
+  useEffect(() => {
+    if (!user || !profile) return
+    let cancelled = false
+    fetchAPI('/recommendations/employer', { employeeId: user.uid })
+      .then(recs => { if (!cancelled) setEmployerRecs(recs) })
+      .catch(err => console.error('Failed to fetch employer recs:', err))
+    return () => { cancelled = true }
+  }, [user, profile, candidates])
+
+  useEffect(() => {
+    if (!inbox.length || !profile) {
+      setEnrichedInbox(inbox)
+      return
     }
-  })
+    let cancelled = false
+
+    Promise.all(
+      inbox.map(async (item) => {
+        if (!item._candidateId) return { ...item }
+        try {
+          const scoring = await fetchAPI('/recommendations/score', {
+            candidateId: item._candidateId,
+            employeeId: profile.id,
+          })
+          return {
+            ...item,
+            match: scoring?.aiScore ?? item.match,
+            aiScoring: scoring,
+            aiInsight: scoring
+              ? `AI score ${scoring.aiScore}% — skill match ${scoring.breakdown.skill.score}%, role fit ${scoring.breakdown.domain.score}%. ${scoring.matchedSkills.length > 0 ? `Shares: ${scoring.matchedSkills.slice(0,3).join(', ')}.` : ''}`
+              : `Match score of ${item.match}% based on tech stack overlap.`,
+          }
+        } catch {
+          return { ...item }
+        }
+      })
+    ).then(enriched => { if (!cancelled) setEnrichedInbox(enriched) })
+
+    return () => { cancelled = true }
+  }, [inbox, profile])
 
   const reputation    = profile?.reputation ?? 3.5
   const totalRefs     = profile?.totalRefs ?? 0
@@ -2004,14 +2026,12 @@ export default function EmployeeDashboard({ navigate }) {
     setSelected(normalized)
   }
 
-  const handleRequestInterview = async (candidateId, targetRole, candidateSkills, yearsExp) => {
+  const handleRequestInterview = async (candidateId, targetRole) => {
     try {
-      const { questions } = generateQuestions(candidateSkills || [], targetRole || 'Software Engineer', yearsExp || 2)
-      await createShadowInterview({
+      await fetchAPI('/shadow-interview/generate', {
         candidateId,
         employeeId: user.uid,
         targetRole: targetRole || 'Software Engineer',
-        questions,
       })
     } catch (err) {
       console.error('Failed to create shadow interview:', err)

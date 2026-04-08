@@ -14,6 +14,12 @@ dist-ssr
 .env
 .env.local
 
+# Backend
+backend/.env
+backend/serviceAccountKey.json
+**/__pycache__/
+backend/venv/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
