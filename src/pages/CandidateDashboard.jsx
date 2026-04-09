@@ -1067,6 +1067,7 @@ function ProfilePage({ profile, onUpdateProfile }) {
   const pct = Number.isFinite(backendPct)
     ? Math.max(0, Math.min(100, Math.round(backendPct)))
     : completionPct;
+
   const allSkills = profile?.skills || [];
   const coreSkills = allSkills.filter((s) => {
     const x = s.toLowerCase();
@@ -1108,6 +1109,59 @@ function ProfilePage({ profile, onUpdateProfile }) {
     const updated = [...(profile?.skills || []), newSkill.trim()];
     onUpdateProfile({ skills: updated });
     setNewSkill("");
+  };
+
+  const openProfileEditor = () => {
+    setEditorForm({
+      name: profile?.name || "",
+      email: profile?.email || "",
+      currentRole: profile?.currentRole || "",
+      yearsExperience: String(profile?.yearsExperience || ""),
+      location: profile?.location || "",
+      lookingFor: profile?.lookingFor || "",
+      bio: profile?.bio || "",
+      skillsText: (profile?.skills || []).join(", "),
+      github: profile?.github || "",
+      linkedin: profile?.linkedin || "",
+      leetcode: profile?.leetcode || "",
+      naukri: profile?.naukri || "",
+      githubConnected: !!profile?.githubConnected,
+      leetcodeConnected: !!profile?.leetcodeConnected,
+    });
+    setEditorError("");
+    setEditorOpen(true);
+  };
+
+  const saveProfileEditor = () => {
+    if (!editorForm.name.trim()) {
+      setEditorError("Name is required.");
+      return;
+    }
+
+    const skills = editorForm.skillsText
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    onUpdateProfile({
+      name: editorForm.name.trim(),
+      email: editorForm.email.trim(),
+      currentRole: editorForm.currentRole.trim(),
+      yearsExperience: Number(editorForm.yearsExperience) || 0,
+      location: editorForm.location.trim(),
+      lookingFor: editorForm.lookingFor.trim(),
+      bio: editorForm.bio.trim(),
+      skills,
+      github: editorForm.github.trim(),
+      linkedin: editorForm.linkedin.trim(),
+      leetcode: editorForm.leetcode.trim(),
+      naukri: editorForm.naukri.trim(),
+      githubConnected: !!editorForm.githubConnected,
+      leetcodeConnected: !!editorForm.leetcodeConnected,
+    });
+
+    setEditorOpen(false);
+    setEditorError("");
   };
 
   const handleFile = async (file) => {
@@ -1171,33 +1225,301 @@ function ProfilePage({ profile, onUpdateProfile }) {
       className="space-y-5 max-w-3xl"
     >
       <motion.div variants={row}>
-        <h1
-          className="text-xl font-bold text-[#E8E6E1]"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          My Profile
-        </h1>
-        <p className="text-sm text-[#6B6966] mt-0.5">
-          Your proof-of-work identity visible to referrers after mutual opt-in.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1
+              className="text-xl font-bold text-[#E8E6E1]"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              Profile Command Center
+            </h1>
+            <p className="text-sm text-[#6B6966] mt-0.5">
+              A single view of your candidate signal, proof-of-work, and hiring
+              readiness.
+            </p>
+          </div>
+          <button
+            onClick={openProfileEditor}
+            className="flex items-center gap-1.5 text-[12px] bg-[#C8FF00]/10 border border-[#C8FF00]/25 text-[#C8FF00] px-3 py-1.5 rounded-sm hover:bg-[#C8FF00] hover:text-[#0A0A0B] transition-colors font-medium shrink-0"
+          >
+            Edit Profile Data
+          </button>
+        </div>
       </motion.div>
 
-      {/* ── Resume Upload Agent ─────────────────────────────────── */}
+      <motion.div
+        variants={row}
+        className="border border-white/8 rounded-sm p-5 bg-white/[0.015]"
+      >
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <p className="text-[10px] text-[#6B6966] uppercase tracking-wider">
+              Current Profile
+            </p>
+            <p className="text-[15px] text-[#E8E6E1] font-semibold mt-1">
+              {profile?.name || "Candidate Profile"}
+            </p>
+            <p className="text-[12px] text-[#A09E9A] mt-0.5">
+              {profile?.currentRole || "Role not set"}{" "}
+              {profile?.yearsExperience
+                ? `• ${profile.yearsExperience} yrs`
+                : ""}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[12px]">
+          <div className="bg-white/[0.02] border border-white/6 rounded-sm px-3 py-2.5">
+            <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-1">
+              Email
+            </p>
+            <p className="text-[#E8E6E1] truncate">
+              {profile?.email || "Not added"}
+            </p>
+          </div>
+          <div className="bg-white/[0.02] border border-white/6 rounded-sm px-3 py-2.5">
+            <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-1">
+              Location
+            </p>
+            <p className="text-[#E8E6E1] truncate">
+              {profile?.location || "Not added"}
+            </p>
+          </div>
+          <div className="bg-white/[0.02] border border-white/6 rounded-sm px-3 py-2.5 sm:col-span-2">
+            <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-1">
+              Looking For
+            </p>
+            <p className="text-[#E8E6E1] truncate">
+              {profile?.lookingFor || "Not specified"}
+            </p>
+          </div>
+          <div className="bg-white/[0.02] border border-white/6 rounded-sm px-3 py-2.5 sm:col-span-2">
+            <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-1">
+              Bio
+            </p>
+            <p className="text-[#E8E6E1] leading-relaxed">
+              {profile?.bio || "Not added"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-1.5">
+            Skills
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {(allSkills?.length ? allSkills : ["No skills added"]).map(
+              (skill) => (
+                <span
+                  key={skill}
+                  className={`text-[11px] px-2 py-0.5 rounded-sm ${allSkills?.length ? "bg-white/4 border border-white/6 text-[#A09E9A]" : "bg-white/3 border border-white/5 text-[#6B6966]"}`}
+                >
+                  {skill}
+                </span>
+              ),
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {editorOpen && (
+        <motion.div
+          variants={row}
+          className="border border-white/8 rounded-sm p-5 bg-white/[0.02]"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[12px] font-semibold text-[#E8E6E1]">
+              Edit Profile
+            </p>
+            <button
+              onClick={() => {
+                setEditorOpen(false);
+                setEditorError("");
+              }}
+              className="text-[12px] text-[#6B6966] hover:text-[#A09E9A] transition-colors"
+            >
+              Close
+            </button>
+          </div>
+          <p className="text-[12px] text-[#6B6966] mb-3">
+            Update your profile details and save to apply instantly.
+          </p>
+
+          <div className="space-y-2.5">
+            <div className="border border-white/6 rounded-sm p-3.5">
+              <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-2">
+                Basic Information
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <input
+                  value={editorForm.name}
+                  onChange={(e) =>
+                    setEditorForm((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  placeholder="Full name"
+                  className="bg-white/3 border border-white/8 text-[12px] text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 transition-colors"
+                />
+                <input
+                  value={editorForm.email}
+                  onChange={(e) =>
+                    setEditorForm((prev) => ({
+                      ...prev,
+                      email: e.target.value,
+                    }))
+                  }
+                  placeholder="Email"
+                  className="bg-white/3 border border-white/8 text-[12px] text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 transition-colors"
+                />
+                <input
+                  value={editorForm.currentRole}
+                  onChange={(e) =>
+                    setEditorForm((prev) => ({
+                      ...prev,
+                      currentRole: e.target.value,
+                    }))
+                  }
+                  placeholder="Current role"
+                  className="bg-white/3 border border-white/8 text-[12px] text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 transition-colors"
+                />
+                <input
+                  value={editorForm.yearsExperience}
+                  onChange={(e) =>
+                    setEditorForm((prev) => ({
+                      ...prev,
+                      yearsExperience: e.target.value,
+                    }))
+                  }
+                  placeholder="Years experience"
+                  className="bg-white/3 border border-white/8 text-[12px] text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 transition-colors"
+                />
+                <input
+                  value={editorForm.location}
+                  onChange={(e) =>
+                    setEditorForm((prev) => ({
+                      ...prev,
+                      location: e.target.value,
+                    }))
+                  }
+                  placeholder="Location"
+                  className="bg-white/3 border border-white/8 text-[12px] text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 transition-colors"
+                />
+                <input
+                  value={editorForm.lookingFor}
+                  onChange={(e) =>
+                    setEditorForm((prev) => ({
+                      ...prev,
+                      lookingFor: e.target.value,
+                    }))
+                  }
+                  placeholder="Looking for"
+                  className="bg-white/3 border border-white/8 text-[12px] text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="border border-white/6 rounded-sm p-3.5">
+              <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-2">
+                Summary & Skills
+              </p>
+              <textarea
+                value={editorForm.bio}
+                onChange={(e) =>
+                  setEditorForm((prev) => ({ ...prev, bio: e.target.value }))
+                }
+                rows={4}
+                placeholder="Bio"
+                className="w-full bg-white/3 border border-white/8 text-[12px] text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 transition-colors resize-none"
+              />
+              <textarea
+                value={editorForm.skillsText}
+                onChange={(e) =>
+                  setEditorForm((prev) => ({
+                    ...prev,
+                    skillsText: e.target.value,
+                  }))
+                }
+                rows={3}
+                placeholder="Skills (comma separated)"
+                className="w-full mt-2.5 bg-white/3 border border-white/8 text-[12px] text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 transition-colors resize-none"
+              />
+            </div>
+          </div>
+
+          {editorError && (
+            <p className="text-[11px] text-red-400 mt-2">{editorError}</p>
+          )}
+          <div className="flex justify-end gap-2 mt-3">
+            <button
+              onClick={() => {
+                setEditorOpen(false);
+                setEditorError("");
+              }}
+              className="text-[12px] border border-white/10 text-[#A09E9A] px-3 py-1.5 rounded-sm hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveProfileEditor}
+              className="text-[12px] bg-[#C8FF00] text-[#0A0A0B] px-3 py-1.5 rounded-sm font-semibold hover:brightness-95 transition"
+            >
+              Save Changes
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      <motion.div
+        variants={row}
+        className="border border-white/8 rounded-sm p-5"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[13px] font-semibold text-[#E8E6E1]">
+            Readiness Meter
+          </p>
+          <span className="text-sm font-bold text-[#C8FF00]">{pct}%</span>
+        </div>
+        <div className="h-1 bg-white/6 rounded-full overflow-hidden mb-4">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${pct}%` }}
+            transition={{
+              duration: 0.9,
+              ease: [0.22, 1, 0.36, 1],
+              delay: 0.25,
+            }}
+            className="h-full bg-[#C8FF00] rounded-full"
+          />
+        </div>
+        <div className="space-y-2">
+          {completionItems.map((item) => (
+            <div
+              key={item.label}
+              className={`flex items-center gap-2 text-[12px] ${item.done ? "text-[#A09E9A]" : "text-[#3D3B38]"}`}
+            >
+              {item.done ? (
+                <CheckCircle size={11} className="text-emerald-400 shrink-0" />
+              ) : (
+                <AlertCircle size={11} className="text-[#3D3B38] shrink-0" />
+              )}
+              {item.label}
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
       <motion.div
         variants={row}
         className="border border-[#C8FF00]/20 bg-[#C8FF00]/[0.03] rounded-sm overflow-hidden"
       >
         <div className="px-5 py-4 border-b border-[#C8FF00]/10 flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#C8FF00]/10 border border-[#C8FF00]/25 rounded-sm flex items-center justify-center shrink-0">
-            <Sparkles size={14} className="text-[#C8FF00]" />
-          </div>
+          
           <div className="flex-1">
-            <p className="text-[13px] font-semibold text-[#E8E6E1]">
-              Resume Agent
+            <p className="text-[16px] font-semibold text-[#E8E6E1]">
+              Resume Intelligence Agent
             </p>
             <p className="text-[11px] text-[#6B6966]">
-              Upload your resume and we'll auto-fill your entire profile — name,
-              skills, experience, everything.
+              Ingest resume data, normalize fields, and patch your profile with
+              recruiter-grade structure.
             </p>
           </div>
         </div>
@@ -1212,11 +1534,7 @@ function ProfilePage({ profile, onUpdateProfile }) {
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
               onClick={() => fileRef.current?.click()}
-              className={`border-2 border-dashed rounded-sm p-8 flex flex-col items-center gap-3 cursor-pointer transition-all duration-200 ${
-                dragOver
-                  ? "border-[#C8FF00]/60 bg-[#C8FF00]/[0.06]"
-                  : "border-white/10 hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/[0.02]"
-              }`}
+              className={`border-2 border-dashed rounded-sm p-8 flex flex-col items-center gap-3 cursor-pointer transition-all duration-200 ${dragOver ? "border-[#C8FF00]/60 bg-[#C8FF00]/[0.06]" : "border-white/10 hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/[0.02]"}`}
             >
               <div
                 className={`w-10 h-10 rounded-sm flex items-center justify-center transition-colors ${dragOver ? "bg-[#C8FF00]/15" : "bg-white/4"}`}
@@ -1258,20 +1576,6 @@ function ProfilePage({ profile, onUpdateProfile }) {
                 <p className="text-[11px] text-[#6B6966] mt-1">
                   Extracting skills, experience, and profile data
                 </p>
-              </div>
-              <div className="flex gap-1">
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="w-1.5 h-1.5 rounded-full bg-[#C8FF00]"
-                    animate={{ opacity: [0.2, 1, 0.2] }}
-                    transition={{
-                      duration: 1.2,
-                      repeat: Infinity,
-                      delay: i * 0.15,
-                    }}
-                  />
-                ))}
               </div>
             </div>
           )}
@@ -1321,78 +1625,6 @@ function ProfilePage({ profile, onUpdateProfile }) {
                   ? parsed.sectionsFound.join(", ")
                   : "header only"}
               </p>
-
-              <AnimatePresence>
-                {showPreview && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden space-y-3"
-                  >
-                    {/* Extracted fields */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        ["Name", parsed.name],
-                        ["Role", parsed.currentRole],
-                        [
-                          "Experience",
-                          parsed.yearsExperience
-                            ? `${parsed.yearsExperience} years`
-                            : "",
-                        ],
-                        ["Location", parsed.location],
-                        ["Domain fit", parsed.lookingFor],
-                        ["Email", parsed.email],
-                      ]
-                        .filter(([, v]) => v)
-                        .map(([label, value]) => (
-                          <div
-                            key={label}
-                            className="bg-white/3 border border-white/6 rounded-sm px-3 py-2"
-                          >
-                            <p className="text-[9px] text-[#3D3B38] uppercase tracking-wider mb-0.5">
-                              {label}
-                            </p>
-                            <p className="text-[12px] text-[#E8E6E1] truncate">
-                              {value}
-                            </p>
-                          </div>
-                        ))}
-                    </div>
-
-                    {parsed.skills?.length > 0 && (
-                      <div>
-                        <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-2">
-                          Skills detected ({parsed.skills.length})
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {parsed.skills.map((s) => (
-                            <span
-                              key={s}
-                              className="text-[11px] bg-[#C8FF00]/8 border border-[#C8FF00]/20 text-[#C8FF00] px-2 py-0.5 rounded-sm"
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {parsed.bio && (
-                      <div>
-                        <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-1">
-                          Summary
-                        </p>
-                        <p className="text-[12px] text-[#A09E9A] leading-relaxed border-l-2 border-[#C8FF00]/20 pl-3">
-                          {parsed.bio}
-                        </p>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => {
@@ -1416,88 +1648,45 @@ function ProfilePage({ profile, onUpdateProfile }) {
         </div>
       </motion.div>
 
-      {/* ── Profile Completeness ─────────────────────────────── */}
-      <motion.div
-        variants={row}
-        className="border border-white/6 rounded-sm p-5"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-[13px] font-semibold text-[#E8E6E1]">
-            Profile completeness
-          </p>
-          <span className="text-sm font-bold text-[#C8FF00]">{pct}%</span>
-        </div>
-        <div className="h-1 bg-white/6 rounded-full overflow-hidden mb-4">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${pct}%` }}
-            transition={{
-              duration: 0.9,
-              ease: [0.22, 1, 0.36, 1],
-              delay: 0.25,
-            }}
-            className="h-full bg-[#C8FF00] rounded-full"
-          />
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {completionItems.map((item) => (
-            <div
-              key={item.label}
-              className={`flex items-center gap-2 text-[12px] ${item.done ? "text-[#A09E9A]" : "text-[#3D3B38]"}`}
-            >
-              {item.done ? (
-                <CheckCircle size={11} className="text-emerald-400 shrink-0" />
-              ) : (
-                <AlertCircle size={11} className="text-[#3D3B38] shrink-0" />
-              )}
-              {item.label}
-            </div>
-          ))}
-        </div>
-      </motion.div>
-
       <motion.div
         variants={row}
         className="border border-white/6 rounded-sm p-5"
       >
         <SH
-          title="Basic information"
-          sub="Shown after mutual referral reveal"
+          title="Skill Intelligence Map"
+          sub="Your stack grouped by hiring relevance"
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
           {[
-            ["Full name", profile?.name || "—"],
-            ["Email", profile?.email || "—"],
-            ["Current role", profile?.currentRole || "—"],
-            [
-              "Years experience",
-              profile?.yearsExperience
-                ? `${profile.yearsExperience} years`
-                : "—",
-            ],
-            ["Location", profile?.location || "—"],
-            ["Looking for", profile?.lookingFor || "—"],
-          ].map(([label, value]) => (
+            { title: "Core", skills: coreSkills },
+            { title: "Frontend", skills: frontendSkills },
+            { title: "Backend & Tools", skills: backendSkills },
+          ].map((group) => (
             <div
-              key={label}
-              className="bg-white/2 border border-white/5 rounded-sm px-3 py-2.5"
+              key={group.title}
+              className="bg-white/2 border border-white/5 rounded-sm p-3"
             >
-              <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-1">
-                {label}
+              <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-2">
+                {group.title}
               </p>
-              <p className="text-[13px] text-[#E8E6E1]">{value}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(group.skills.length > 0
+                  ? group.skills
+                  : ["No mapped skills yet"]
+                ).map((s) => (
+                  <span
+                    key={s}
+                    className={`text-[11px] px-2 py-0.5 rounded-sm ${group.skills.length > 0 ? "bg-white/4 border border-white/6 text-[#A09E9A]" : "bg-white/3 border border-white/5 text-[#6B6966]"}`}
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
             </div>
           ))}
         </div>
-      </motion.div>
-
-      <motion.div
-        variants={row}
-        className="border border-white/6 rounded-sm p-5"
-      >
-        <SH title="Tech stack" sub="Used for AI matching" />
-        <div className="flex flex-wrap gap-2">
-          {(profile?.skills || []).map((s) => (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {allSkills.map((s) => (
             <span
               key={s}
               className="text-[12px] bg-white/4 border border-white/6 text-[#A09E9A] px-2.5 py-1 rounded-sm"
@@ -1523,42 +1712,60 @@ function ProfilePage({ profile, onUpdateProfile }) {
       >
         {[
           {
-            id: "github",
             icon: GitBranch,
-            title: "Connect GitHub",
-            sub: "Generates commit heatmap and language breakdown.",
+            connected: !!profile?.githubConnected,
+            title: profile?.githubConnected
+              ? "GitHub Connected"
+              : "Connect GitHub",
+            sub: profile?.githubConnected
+              ? "Commit activity and language breakdown are active."
+              : "Generates commit heatmap and language breakdown.",
           },
           {
-            id: "leetcode",
             icon: Code2,
-            title: "Link LeetCode",
-            sub: "Adds solve count and contest rating to your profile.",
+            connected: !!profile?.leetcodeConnected,
+            title: profile?.leetcodeConnected
+              ? "LeetCode Connected"
+              : "Connect LeetCode",
+            sub: profile?.leetcodeConnected
+              ? "Problem-solving signal is visible to referrers."
+              : "Adds solve count and contest rating to your profile.",
           },
-        ].map(({ id, icon: Icon, title, sub }) => {
-          const isConnected =
-            id === "github"
-              ? profile?.githubConnected
-              : profile?.leetcodeConnected;
-          return (
-            <div
-              key={title}
-              className="border border-dashed border-white/10 rounded-sm p-5 flex flex-col gap-3"
-            >
-              <div className="w-8 h-8 border border-white/8 rounded-sm flex items-center justify-center">
-                <Icon size={14} className="text-[#6B6966]" />
-              </div>
-              <div>
-                <p className="text-[13px] font-medium text-[#E8E6E1]">
-                  {title}
-                </p>
-                <p className="text-[11px] text-[#6B6966] mt-0.5">{sub}</p>
-              </div>
-              <button className="self-start text-[12px] bg-[#C8FF00]/10 border border-[#C8FF00]/25 text-[#C8FF00] px-3 py-1.5 rounded-sm hover:bg-[#C8FF00] hover:text-[#0A0A0B] transition-colors font-medium">
-                {isConnected ? "Connected" : "Connect"} →
-              </button>
+          {
+            icon: User,
+            connected: !!profile?.linkedin,
+            title: profile?.linkedin
+              ? "LinkedIn Connected"
+              : "Connect LinkedIn",
+            sub: profile?.linkedin
+              ? profile.linkedin
+              : "Add your LinkedIn profile link.",
+          },
+          {
+            icon: User,
+            connected: !!profile?.naukri,
+            title: profile?.naukri ? "Naukri Connected" : "Connect Naukri",
+            sub: profile?.naukri
+              ? profile.naukri
+              : "Add your Naukri profile link.",
+          },
+        ].map(({ icon: Icon, title, sub, connected }) => (
+          <div
+            key={title}
+            className="border border-dashed border-white/10 rounded-sm p-5 flex flex-col gap-3"
+          >
+            <div className="w-8 h-8 border border-white/8 rounded-sm flex items-center justify-center">
+              <Icon size={14} className="text-[#6B6966]" />
             </div>
-          );
-        })}
+            <div>
+              <p className="text-[13px] font-medium text-[#E8E6E1]">{title}</p>
+              <p className="text-[11px] text-[#6B6966] mt-0.5">{sub}</p>
+            </div>
+            <button className="self-start text-[12px] bg-[#C8FF00]/10 border border-[#C8FF00]/25 text-[#C8FF00] px-3 py-1.5 rounded-sm hover:bg-[#C8FF00] hover:text-[#0A0A0B] transition-colors font-medium">
+              {connected ? "Connected" : "Connect"} →
+            </button>
+          </div>
+        ))}
       </motion.div>
 
       <motion.div
