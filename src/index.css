@@ -1,4 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Quicksand:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+:root {
+  --font-heading: 'Bricolage Grotesque', sans-serif;
+  --font-maininfo: 'Manrope', sans-serif;
+  --font-info: 'QuickSand', sans-serif;
+  font-size: 17.5px;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #111315;
+  color: #E8E6E1;
+  font-family: var(--font-info);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 * {
   box-sizing: border-box;
 }

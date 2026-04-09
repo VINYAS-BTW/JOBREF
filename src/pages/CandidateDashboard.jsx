@@ -112,18 +112,18 @@ function Sidebar({ active, setActive, navigate, tokens, profile, interviewBadge 
   const initials     = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 
   return (
-    <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-white/6">
-      <div className="px-5 py-5 border-b border-white/6">
+    <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-white/18">
+      <div className="px-5 py-5 border-b border-white/16">
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs font-semibold tracking-widest uppercase text-[#C8FF00]">RefHire</span>
         </div>
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-[#C8FF00]/10 border border-[#C8FF00]/20 flex items-center justify-center shrink-0">
+          <div className="w-7 h-7 rounded-full bg-lime-100/10 border border-[#C8FF00]/20 flex items-center justify-center shrink-0">
             <span className="text-[10px] font-bold text-[#C8FF00]">{initials}</span>
           </div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-[#E8E6E1] truncate">{displayName}</p>
-            <p className="text-[10px] text-[#3D3B38] truncate">{displayEmail}</p>
+            <p className="text-[12px] text-[#999] truncate">{displayEmail}</p>
           </div>
         </div>
       </div>
@@ -131,13 +131,13 @@ function Sidebar({ active, setActive, navigate, tokens, profile, interviewBadge 
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
         {NAV_GROUPS.map(group => (
           <div key={group.label}>
-            <p className="text-[10px] font-medium tracking-widest uppercase text-[#3D3B38] px-2 mb-1.5">{group.label}</p>
+            <p className="text-[10px] font-medium tracking-widest uppercase text-[#999] px-2 mb-1.5">--{group.label}--</p>
             <div className="space-y-0.5">
               {group.items.map(({ id, icon: Icon, label, badge }) => (
                 <button
                   key={id}
                   onClick={() => setActive(id)}
-                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-sm transition-all duration-150 ${
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-2.5 rounded-sm transition-all cursor-pointer duration-150 ${
                     active === id
                       ? 'bg-[#C8FF00]/10 text-[#C8FF00]'
                       : 'text-[#6B6966] hover:text-[#A09E9A] hover:bg-white/3'
@@ -159,12 +159,12 @@ function Sidebar({ active, setActive, navigate, tokens, profile, interviewBadge 
         ))}
       </div>
 
-      <div className="px-3 py-4 border-t border-white/6 space-y-2">
-        <div className="px-2.5 py-2.5 bg-white/2 border border-white/6 rounded-sm">
+      <div className="px-3 py-4 border-t border-white/16 space-y-2">
+        <div className="px-2.5 py-2.5 bg-white/2 border border-white/16 rounded-sm">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
               <Coins size={11} className="text-[#C8FF00]" />
-              <span className="text-[11px] text-[#6B6966]">Referral tokens</span>
+              <span className="text-[12px] text-[#888]">Referral tokens</span>
             </div>
             <span className="text-[11px] font-semibold text-[#E8E6E1]">{tokens}/3</span>
           </div>
@@ -173,11 +173,11 @@ function Sidebar({ active, setActive, navigate, tokens, profile, interviewBadge 
               <div key={i} className={`h-0.5 flex-1 rounded-full transition-colors duration-500 ${i < tokens ? 'bg-[#C8FF00]' : 'bg-white/8'}`} />
             ))}
           </div>
-          <p className="text-[10px] text-[#3D3B38]">Resets in 18 days</p>
+          <p className="text-[11px] text-[#888]">Resets in 18 days</p>
         </div>
         <button
           onClick={() => navigate('landing')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-[13px] text-[#3D3B38] hover:text-[#6B6966] transition-colors rounded-sm hover:bg-white/2"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-[13px] cursor-pointer text-[#888] hover:text-[#aed259] transition-colors rounded-sm hover:bg-white/2"
         >
           <LogOut size={13} /> Sign out
         </button>
@@ -339,7 +339,7 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
     <motion.div variants={page} initial="hidden" animate="show" className="space-y-6">
 
       <motion.div variants={row}>
-        <h1 className="text-2xl font-bold text-[#E8E6E1] leading-tight" style={{ fontFamily: "'DM Serif Display', serif" }}>
+        <h1 className="text-2xl font-bold text-[#E8E6E1] leading-tight" style={{ fontFamily: 'var(--font-heading)' }}>
           Good morning, {profile?.name?.split(' ')[0] || 'there'}.
         </h1>
         <p className="text-sm text-[#6B6966] mt-1">
@@ -356,9 +356,9 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
           { label: 'Awaiting response', value: String(pendingCount), trend: pendingCount > 0 ? 'Check My Requests' : 'None pending', up: null },
         ].map(s => (
           <div key={s.label} className="bg-white/2 border border-white/5 rounded-sm px-4 py-3.5">
-            <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-2">{s.label}</p>
-            <p className="text-2xl font-bold text-[#E8E6E1] leading-none" style={{ fontFamily: "'DM Serif Display', serif" }}>{s.value}</p>
-            <p className={`text-[11px] mt-1.5 ${s.up === true ? 'text-emerald-400' : 'text-[#3D3B38]'}`}>{s.trend}</p>
+            <p className="text-[10px] text-[#fff] uppercase tracking-wider mb-2">{s.label}</p>
+            <p className="text-2xl font-bold text-[#E8E6E1] leading-none" style={{ fontFamily: 'var(--font-maininfo)' }}>{s.value}</p>
+            <p className={`text-[12px] mt-1.5 ${s.up === true ? 'text-emerald-400' : 'text-[#888]'}`}>{s.trend}</p>
           </div>
         ))}
       </motion.div>
@@ -367,8 +367,8 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
         <motion.div variants={row} className="lg:col-span-3 border border-white/6 rounded-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-white/6 flex items-center justify-between">
             <div>
-              <p className="text-[13px] font-semibold text-[#E8E6E1]">Top matched referrers</p>
-              <p className="text-[11px] text-[#6B6966] mt-0.5">AI probability score · anonymous</p>
+              <p className="text-[18px] font-semibold text-[#E8E6E1]">Top matched referrers</p>
+              <p className="text-[12px] text-[#666] mt-0.5 leading-3.5">AI probability score · anonymous</p>
             </div>
             <button onClick={() => setActiveTab('discover')} className="flex items-center gap-1 text-[11px] text-[#6B6966] hover:text-[#C8FF00] transition-colors">
               All referrers <ArrowUpRight size={10} />
@@ -398,7 +398,7 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
                 </div>
                 <div className="flex flex-col items-end shrink-0 ml-2">
                   <div className="text-right mb-2">
-                    <p className={`text-base font-bold ${r.match >= 80 ? 'text-[#C8FF00]' : 'text-[#A09E9A]'}`} style={{ fontFamily: "'DM Serif Display', serif" }}>
+                    <p className={`text-base font-bold ${r.match >= 80 ? 'text-[#C8FF00]' : 'text-[#A09E9A]'}`} style={{ fontFamily: 'var(--font-maininfo)' }}>
                       {r.match}%
                     </p>
                     <p className="text-[10px] text-[#3D3B38]">match</p>
@@ -425,8 +425,8 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
 
         <motion.div variants={row} className="lg:col-span-2 border border-white/6 rounded-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-white/6">
-            <p className="text-[13px] font-semibold text-[#E8E6E1]">Activity</p>
-            <p className="text-[11px] text-[#6B6966] mt-0.5">Platform events</p>
+            <p className="text-[18px] font-semibold text-[#E8E6E1]">Activity</p>
+            <p className="text-[12px] text-[#888] mt-0.5">Platform events</p>
           </div>
           <div className="divide-y divide-white/4">
             {activity.slice(0, 5).map(a => {
@@ -592,7 +592,7 @@ function ProfilePage({ profile, onUpdateProfile }) {
   return (
     <motion.div variants={page} initial="hidden" animate="show" className="space-y-5 max-w-3xl">
       <motion.div variants={row}>
-        <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: "'DM Serif Display', serif" }}>My Profile</h1>
+        <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>My Profile</h1>
         <p className="text-sm text-[#6B6966] mt-0.5">Your proof-of-work identity visible to referrers after mutual opt-in.</p>
       </motion.div>
 
@@ -892,7 +892,7 @@ function DiscoverPage({ referrers, onRequest }) {
   return (
     <motion.div variants={page} initial="hidden" animate="show" className="space-y-5">
       <motion.div variants={row}>
-        <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: "'DM Serif Display', serif" }}>Discover Referrers</h1>
+        <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>Discover Referrers</h1>
         <p className="text-sm text-[#6B6966] mt-0.5">All identities are anonymised until mutual opt-in. Sorted by AI probability score.</p>
       </motion.div>
 
@@ -938,7 +938,7 @@ function DiscoverPage({ referrers, onRequest }) {
                   <span className="text-[#3D3B38] ml-1">{r.refs} refs</span>
                 </div>
                 <div className="text-left sm:text-right shrink-0">
-                  <p className={`text-base font-bold ${r.match>=80?'text-[#C8FF00]':r.match>=65?'text-amber-400':'text-[#6B6966]'}`} style={{ fontFamily:"'DM Serif Display',serif" }}>
+                  <p className={`text-base font-bold ${r.match>=80?'text-[#C8FF00]':r.match>=65?'text-amber-400':'text-[#6B6966]'}`} style={{ fontFamily: 'var(--font-maininfo)' }}>
                     {r.match}%
                   </p>
                   <p className="text-[10px] text-[#3D3B38]">match</p>
@@ -978,7 +978,7 @@ function RequestsPage({ requests }) {
   return (
     <motion.div variants={page} initial="hidden" animate="show" className="space-y-5">
       <motion.div variants={row}>
-        <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: "'DM Serif Display', serif" }}>My Requests</h1>
+        <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>My Requests</h1>
         <p className="text-sm text-[#6B6966] mt-0.5">Full pipeline — from request sent to hire.</p>
       </motion.div>
 
@@ -1048,7 +1048,7 @@ function ScoreRing({ score, size = 64, strokeWidth = 4, color }) {
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-base font-bold" style={{ color, fontFamily: "'DM Serif Display', serif" }}>{score}</span>
+        <span className="text-base font-bold" style={{ color, fontFamily: 'var(--font-maininfo)' }}>{score}</span>
       </div>
     </div>
   )
@@ -1104,7 +1104,7 @@ function AIMatchPage({ recommendations, profile, onRequest, tokens }) {
       <motion.div variants={row}>
         <div className="flex items-center gap-2 mb-1">
           <BrainCircuit size={15} className="text-[#C8FF00]" />
-          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: "'DM Serif Display', serif" }}>AI Match Engine</h1>
+          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>AI Match Engine</h1>
         </div>
         <p className="text-sm text-[#6B6966]">
           Multi-factor scoring: skill overlap (40%), role/domain fit (20%), experience alignment (15%), referrer credibility (15%), activity signal (10%).
@@ -1121,7 +1121,7 @@ function AIMatchPage({ recommendations, profile, onRequest, tokens }) {
         ].map(s => (
           <div key={s.label} className="bg-white/2 border border-white/5 rounded-sm px-4 py-3.5">
             <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-2">{s.label}</p>
-            <p className={`text-2xl font-bold leading-none ${s.color}`} style={{ fontFamily: "'DM Serif Display', serif" }}>{s.value}</p>
+            <p className={`text-2xl font-bold leading-none ${s.color}`} style={{ fontFamily: 'var(--font-maininfo)' }}>{s.value}</p>
             <p className="text-[11px] text-[#3D3B38] mt-1.5">{s.sub}</p>
           </div>
         ))}
@@ -1385,7 +1385,7 @@ function WarmIntroPage({ referrers }) {
       <motion.div variants={row}>
         <div className="flex items-center gap-2 mb-1">
           <MessageSquare size={15} className="text-[#C8FF00]" />
-          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: "'DM Serif Display', serif" }}>Warm Intro Generator</h1>
+          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>Warm Intro Generator</h1>
         </div>
         <p className="text-sm text-[#6B6966]">AI crafts a personalised, role-specific pitch for each referrer based on your proof-of-work data and their team stack.</p>
       </motion.div>
@@ -1452,7 +1452,7 @@ function SkillGapPage() {
       <motion.div variants={row}>
         <div className="flex items-center gap-2 mb-1">
           <Target size={15} className="text-[#C8FF00]" />
-          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: "'DM Serif Display', serif" }}>Skill Gap Navigator</h1>
+          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>Skill Gap Navigator</h1>
         </div>
         <p className="text-sm text-[#6B6966]">See exactly which skills are suppressing your match score — and what to learn to close the gap for each target role.</p>
       </motion.div>
@@ -1565,7 +1565,7 @@ function ShadowInterviewPage({ interviews, onComplete }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Mic size={15} className="text-purple-400" />
-              <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: "'DM Serif Display', serif" }}>Shadow Interview</h1>
+              <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>Shadow Interview</h1>
             </div>
             <p className="text-sm text-[#6B6966]">For: {activeInterview.targetRole}</p>
           </div>
@@ -1668,7 +1668,7 @@ function ShadowInterviewPage({ interviews, onComplete }) {
       <motion.div variants={row}>
         <div className="flex items-center gap-2 mb-1">
           <Mic size={15} className="text-purple-400" />
-          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: "'DM Serif Display', serif" }}>Shadow Interview</h1>
+          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>Shadow Interview</h1>
         </div>
         <p className="text-sm text-[#6B6966]">AI-generated technical interviews requested by referrers. Complete them to strengthen your referral.</p>
       </motion.div>
@@ -1735,7 +1735,7 @@ function ShadowInterviewPage({ interviews, onComplete }) {
                           { label: 'Conf', value: s.confidenceScore },
                         ].map(m => (
                           <div key={m.label} className="text-center">
-                            <p className={`text-sm font-bold ${m.value >= 70 ? 'text-[#C8FF00]' : m.value >= 45 ? 'text-amber-400' : 'text-[#6B6966]'}`} style={{ fontFamily: "'DM Serif Display', serif" }}>
+                            <p className={`text-sm font-bold ${m.value >= 70 ? 'text-[#C8FF00]' : m.value >= 45 ? 'text-amber-400' : 'text-[#6B6966]'}`} style={{ fontFamily: 'var(--font-maininfo)' }}>
                               {m.value}
                             </p>
                             <p className="text-[9px] text-[#3D3B38]">{m.label}</p>

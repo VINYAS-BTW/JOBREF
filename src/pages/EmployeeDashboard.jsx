@@ -26,7 +26,7 @@ import { fetchAPI } from '../services/api'
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const C = {
-  bg:           '#0A0A0B',
+  bg:           '#111315',
   surface:      'rgba(255,255,255,0.02)',
   surfaceHover: 'rgba(255,255,255,0.035)',
   border:       'rgba(255,255,255,0.06)',
@@ -47,7 +47,8 @@ const C = {
   emeraldBorder:'rgba(16,185,129,0.2)',
 }
 
-const serif = { fontFamily: "'DM Serif Display', serif" }
+const heading = { fontFamily: 'var(--font-heading)' }
+const serif = { fontFamily: 'var(--font-maininfo)' }
 
 const STAGES = ['Referred', 'Screening', 'Interview', 'Offer', 'Hired']
 
@@ -293,7 +294,7 @@ function CandidateModal({ candidate, onClose, onDecide, employeeProfile, onReque
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(10,10,11,0.88)', backdropFilter: 'blur(10px)' }}
+      style={{ background: 'rgba(17,19,21,0.88)', backdropFilter: 'blur(10px)' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <motion.div
@@ -535,7 +536,7 @@ function CandidateModal({ candidate, onClose, onDecide, employeeProfile, onReque
                         <span className="inline-block text-sm font-bold px-4 py-1.5 rounded-sm" style={{ color: recColor, background: `${recColor}18`, border: `1px solid ${recColor}40` }}>
                           {s.recLabel}
                         </span>
-                        <p className="text-[22px] font-bold mt-3" style={{ fontFamily: "'DM Serif Display', serif", color: recColor }}>{s.overallScore}/100</p>
+                        <p className="text-[22px] font-bold mt-3" style={{ color: recColor, ...serif }}>{s.overallScore}/100</p>
                         <p className="text-[10px] mt-0.5" style={{ color: C.subtle }}>Overall Score</p>
                       </motion.div>
 
@@ -939,7 +940,7 @@ function Sidebar({ active, setActive, inboxCount, navigate, profile }) {
 function Topbar({ reputation, totalBounty }) {
   return (
     <div className="sticky top-0 z-20 h-14 px-6 md:px-8 flex items-center justify-between shrink-0"
-      style={{ borderBottom:`1px solid ${C.border}`, background:'rgba(10,10,11,0.92)', backdropFilter:'blur(12px)' }}>
+      style={{ borderBottom:`1px solid ${C.border}`, background:'rgba(17,19,21,0.92)', backdropFilter:'blur(12px)' }}>
 
       <div className="flex items-center gap-2 ml-auto">
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
@@ -975,7 +976,7 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
       <motion.div variants={fadeUp}>
-        <h1 className="text-2xl font-bold mb-0.5" style={{ color: C.primary, ...serif }}>Referrer Dashboard</h1>
+        <h1 className="text-2xl font-bold mb-0.5" style={{ color: C.primary, ...heading }}>Referrer Dashboard</h1>
         <p className="text-sm" style={{ color: C.subtle }}>You are invisible to candidates until you accept their request.</p>
       </motion.div>
 
@@ -1135,7 +1136,7 @@ function InboxTab({ inbox, onSelect }) {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
       <motion.div variants={fadeUp}>
-        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...serif }}>Referral Inbox</h1>
+        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...heading }}>Referral Inbox</h1>
         <p className="text-sm" style={{ color: C.subtle }}>
           {inbox.length > 0
             ? `${inbox.length} candidate${inbox.length !== 1 ? 's' : ''} filtered by AI, awaiting your review.`
@@ -1213,7 +1214,7 @@ function PipelineTab({ pipeline }) {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
       <motion.div variants={fadeUp}>
-        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...serif }}>My Referrals</h1>
+        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...heading }}>My Referrals</h1>
         <p className="text-sm" style={{ color: C.subtle }}>Track candidates you have forwarded to HR and their pipeline stage.</p>
       </motion.div>
 
@@ -1296,7 +1297,7 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
       <motion.div variants={fadeUp}>
-        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...serif }}>Bounty & Reputation</h1>
+        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...heading }}>Bounty & Reputation</h1>
         <p className="text-sm" style={{ color: C.subtle }}>Your trust score and fractional referral earnings.</p>
       </motion.div>
 
@@ -1413,7 +1414,7 @@ function SettingsTab({ profile, onUpdate }) {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5 max-w-xl">
       <motion.div variants={fadeUp}>
-        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...serif }}>Preferences</h1>
+        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...heading }}>Preferences</h1>
         <p className="text-sm" style={{ color: C.subtle }}>Configure your anonymous profile and matching criteria.</p>
       </motion.div>
 
@@ -1515,7 +1516,7 @@ function HelpTab() {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5 max-w-xl">
       <motion.div variants={fadeUp}>
-        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...serif }}>Help & Documentation</h1>
+        <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...heading }}>Help & Documentation</h1>
         <p className="text-sm" style={{ color: C.subtle }}>Frequently asked questions about the referrer workflow.</p>
       </motion.div>
       <motion.div variants={fadeUp} className="space-y-2.5">
@@ -1620,7 +1621,7 @@ function TalentScoutTab({ recommendations, onSelect }) {
       <motion.div variants={fadeUp}>
         <div className="flex items-center gap-2 mb-1">
           <BrainCircuit size={15} style={{ color: C.accent }} />
-          <h1 className="text-xl font-bold" style={{ color: C.primary, ...serif }}>AI Talent Scout</h1>
+          <h1 className="text-xl font-bold" style={{ color: C.primary, ...heading }}>AI Talent Scout</h1>
         </div>
         <p className="text-sm" style={{ color: C.subtle }}>
           Multi-factor scoring: skill match (40%), role fit (20%), experience (15%), profile depth (15%), activity signal (10%).
@@ -2077,7 +2078,7 @@ export default function EmployeeDashboard({ navigate }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: C.bg, fontFamily:"'DM Sans', sans-serif" }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: C.bg, fontFamily: 'var(--font-info)' }}>
       <Sidebar active={tab} setActive={setTab} inboxCount={enrichedInbox.length} navigate={navigate} profile={profile} />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
