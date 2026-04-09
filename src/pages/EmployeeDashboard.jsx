@@ -1003,8 +1003,8 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-2 mb-1.5">
-            <Shield size={13} style={{ color: C.accent }} />
-            <span className="text-sm font-semibold" style={{ color: C.primary }}>Trust Protocol</span>
+            <Shield size={18} style={{ color: C.accent }} />
+            <span className="text-lg font-semibold" style={{ color: C.primary }}>Trust Protocol</span>
           </div>
           <p className="text-xs leading-relaxed mb-4" style={{ color: C.subtle }}>
             Your score rises with successful hires and falls with low-signal referrals. Higher tiers unlock premium profiles and bigger bounty splits.
@@ -1031,8 +1031,8 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
         <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-2">
-              <DollarSign size={13} style={{ color: C.accent }} />
-              <span className="text-sm font-semibold" style={{ color: C.primary }}>Bounty Syndicate</span>
+              <DollarSign size={18} style={{ color: C.accent }} />
+              <span className="text-lg font-semibold" style={{ color: C.primary }}>Bounty Syndicate</span>
             </div>
             <span className="text-[10px] px-2 py-0.5 rounded-sm"
               style={{ background: C.emeraldDim, color: C.emerald, border: `1px solid ${C.emeraldBorder}` }}>Active</span>
