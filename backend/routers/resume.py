@@ -48,6 +48,8 @@ async def parse_and_apply(
     update_data = {}
     if result.get("name"):
         update_data["name"] = result["name"]
+    if result.get("email"):
+        update_data["email"] = result["email"]
     if result.get("currentRole"):
         update_data["currentRole"] = result["currentRole"]
     if result.get("yearsExperience"):

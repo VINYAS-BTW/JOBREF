@@ -1,4 +1,4 @@
-import { Briefcase, User, GitBranch, Gauge } from 'lucide-react'
+import { Briefcase, User, GitBranch, Gauge, Trash2 } from 'lucide-react'
 
 const STATUS_STYLE = {
   requested: { bg: 'rgba(255,255,255,0.06)', color: '#A09E9A' },
@@ -18,6 +18,7 @@ export default function ReferralCard({
   onInterview,
   onHired,
   onReject,
+  onRemove,
 }) {
   const st = STATUS_STYLE[status] || STATUS_STYLE.requested
   return (
@@ -73,6 +74,18 @@ export default function ReferralCard({
         >
           Reject
         </button>
+        {onRemove && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onRemove}
+            title="Remove from ATS"
+            className="text-[11px] font-medium px-3 py-1.5 rounded-sm bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/15 disabled:opacity-40 inline-flex items-center gap-1"
+          >
+            <Trash2 size={12} />
+            Remove
+          </button>
+        )}
       </div>
     </div>
   )

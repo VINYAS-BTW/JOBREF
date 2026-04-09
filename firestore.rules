@@ -3,10 +3,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Case-insensitive so "Hiring" / typos in casing don't break ATS writes.
+    function isHiringRole(r) {
+      return r is string && lower(r) == 'hiring';
+    }
+
     function isHiring() {
       return request.auth != null &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'hiring';
+        isHiringRole(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role);
     }
 
     // Users collection
@@ -51,12 +56,14 @@ service cloud.firestore {
 
     // Pipeline — readable by the employee who created it or hiring
     match /pipeline/{pipelineId} {
-      allow read: if request.auth != null && (
+      // Keep pipeline list/get resilient across employee + hiring listeners.
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (
         resource.data.employeeId == request.auth.uid ||
         isHiring()
       );
-      allow create: if request.auth != null;
-      allow update: if request.auth != null && (
+      allow delete: if request.auth != null && (
         resource.data.employeeId == request.auth.uid ||
         isHiring()
       );

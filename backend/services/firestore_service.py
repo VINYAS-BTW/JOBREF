@@ -93,6 +93,105 @@ def get_shadow_interview(interview_id: str) -> dict | None:
 # ── Hiring committee dashboard (Admin SDK) ───────────────────────────────────
 
 REFERRAL_STATUSES = frozenset({"requested", "approved", "interview", "hired", "rejected"})
+PIPELINE_STATUSES = frozenset({"referred", "interviewing", "offer_extended", "hired", "declined"})
+
+
+def user_has_hiring_role(uid: str) -> bool:
+    doc = db.collection("users").document(uid).get()
+    if not doc.exists:
+        return False
+    role = (doc.to_dict() or {}).get("role")
+    return isinstance(role, str) and role.strip().lower() == "hiring"
+
+
+def referral_to_pipeline_status(ref_status: str) -> str:
+    return {
+        "interview": "interviewing",
+        "hired": "hired",
+        "rejected": "declined",
+        "approved": "referred",
+        "requested": "referred",
+    }.get(ref_status, "referred")
+
+
+def pipeline_to_referral_status(pipeline_status: str | None) -> str:
+    if pipeline_status is None or pipeline_status == "":
+        return "approved"
+    s = str(pipeline_status)
+    if s == "referred":
+        return "approved"
+    if s in ("interviewing", "offer_extended"):
+        return "interview"
+    if s == "hired":
+        return "hired"
+    if s == "declined":
+        return "rejected"
+    if s in PIPELINE_STATUSES:
+        return "approved"
+    return "approved"
+
+
+def pipeline_stage_for_native_status(native: str) -> int:
+    return {
+        "referred": 1,
+        "interviewing": 2,
+        "offer_extended": 3,
+        "hired": 4,
+        "declined": 1,
+    }.get(native, 1)
+
+
+def update_pipeline_status(pipeline_id: str, new_referral_status: str) -> None:
+    """Mirror frontend hiringFirestore.updatePipelineStatus (Admin SDK bypasses client rules)."""
+    if new_referral_status not in REFERRAL_STATUSES:
+        raise ValueError("invalid status")
+
+    pref = db.collection("pipeline").document(pipeline_id)
+    snap = pref.get()
+    if not snap.exists:
+        raise LookupError("pipeline not found")
+    data = snap.to_dict() or {}
+    prev_pipeline = data.get("status")
+    prev_referral = pipeline_to_referral_status(prev_pipeline)
+    next_pipeline = referral_to_pipeline_status(new_referral_status)
+    next_stage = pipeline_stage_for_native_status(next_pipeline)
+
+    pref.update(
+        {
+            "status": next_pipeline,
+            "stage": next_stage,
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        }
+    )
+
+    karma_delta = 0
+    if new_referral_status == "interview" and prev_referral not in ("interview", "hired"):
+        karma_delta += 10
+    if new_referral_status == "hired" and prev_referral != "hired":
+        karma_delta += 25
+
+    employee_id = data.get("employeeId")
+    if not employee_id:
+        return
+    emp_ref = db.collection("employeeProfiles").document(employee_id)
+    emp_snap = emp_ref.get()
+    if not emp_snap.exists:
+        return
+    patch: dict = {}
+    if karma_delta:
+        patch["karmaScore"] = firestore.Increment(karma_delta)
+    if new_referral_status == "hired" and prev_referral != "hired":
+        patch["successfulReferrals"] = firestore.Increment(1)
+    if patch:
+        emp_ref.update(patch)
+
+
+def delete_pipeline_document(pipeline_id: str) -> None:
+    ref = db.collection("pipeline").document(pipeline_id)
+    snap = ref.get()
+    if not snap.exists:
+        raise LookupError("pipeline not found")
+    ref.delete()
 
 
 def get_all_referrals() -> list[dict]:
