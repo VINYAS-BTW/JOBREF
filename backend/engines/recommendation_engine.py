@@ -394,6 +394,19 @@ WEIGHTS = {"skill": 0.40, "domain": 0.20, "experience": 0.15, "credibility": 0.1
 EMP_WEIGHTS = {"skill": 0.40, "domain": 0.20, "experience": 0.15, "profileDepth": 0.15, "activity": 0.10}
 
 
+def _employee_for_candidate_matching(emp: dict) -> dict:
+    """Referrer can hide bounty slots from candidate-facing discovery and scoring."""
+    if emp.get("showOpeningsPublic") is False:
+        return {**emp, "activeReqs": []}
+    return emp
+
+
+def _public_active_reqs_payload(emp: dict) -> list:
+    if emp.get("showOpeningsPublic") is False:
+        return []
+    return ensure_array(emp.get("activeReqs"))
+
+
 # ── Candidate → Employees ────────────────────────────────────────────────────
 
 def generate_recommendations(
@@ -413,11 +426,12 @@ def generate_recommendations(
         if emp.get("id") == candidate_profile.get("id"):
             continue
 
-        skill = compute_skill_score(candidate_profile.get("skills"), emp.get("stack"))
-        domain = compute_domain_score(candidate_profile, emp)
-        experience = compute_experience_score(candidate_profile, emp)
+        emp_match = _employee_for_candidate_matching(emp)
+        skill = compute_skill_score(candidate_profile.get("skills"), emp_match.get("stack"))
+        domain = compute_domain_score(candidate_profile, emp_match)
+        experience = compute_experience_score(candidate_profile, emp_match)
         credibility = compute_credibility_score(emp.get("reputation", 3.5), emp.get("totalRefs", 0))
-        activity = compute_activity_score(emp)
+        activity = compute_activity_score(emp_match)
 
         raw = (
             skill["score"] * WEIGHTS["skill"]
@@ -433,7 +447,7 @@ def generate_recommendations(
             "id": emp.get("id"),
             "alias": emp.get("alias") or emp.get("visibleAs") or "Anonymous Referrer",
             "stack": ensure_array(emp.get("stack")),
-            "activeReqs": ensure_array(emp.get("activeReqs")),
+            "activeReqs": _public_active_reqs_payload(emp),
             "companyTier": emp.get("companyTier", ""),
             "reputation": emp.get("reputation", 3.5),
             "totalRefs": emp.get("totalRefs", 0),

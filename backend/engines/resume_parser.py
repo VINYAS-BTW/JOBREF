@@ -334,6 +334,109 @@ def _extract_location(lines: list[str]) -> str:
     return ""
 
 
+def _line_is_bullet(line: str) -> bool:
+    s = line.lstrip()
+    return bool(s.startswith(("-", "•", "*", "·", "▪", "◦")))
+
+
+def _is_job_header_line(line: str) -> bool:
+    """Heuristic: new employment row in the experience section."""
+    s = line.strip()
+    if len(s) < 4 or len(s) > 160:
+        return False
+    if DATE_RANGE_RE.search(s) or YEAR_RANGE_RE.search(s):
+        return True
+    if re.search(r"\s+at\s+", s, re.I):
+        return True
+    if s.count("|") >= 1 and len(s) < 110:
+        return True
+    if re.search(r"\b20\d{2}\s*[-–—]\s*(20\d{2}|[Pp]resent|[Cc]urrent)\b", s):
+        return True
+    return False
+
+
+def _parse_job_block(lines: list[str]) -> dict[str, str]:
+    """Turn one experience chunk into company / title / dates / summary."""
+    if not lines:
+        return {"company": "", "title": "", "dates": "", "summary": ""}
+    header = lines[0].strip()
+    body = [ln.strip() for ln in lines[1:] if ln.strip()]
+    summary_text = " ".join(body).strip()
+    if len(summary_text) > 420:
+        summary_text = summary_text[:417] + "..."
+
+    dates = ""
+    dm = DATE_RANGE_RE.search(header)
+    if dm:
+        dates = dm.group(0).strip()
+    else:
+        ym = YEAR_RANGE_RE.search(header)
+        if ym:
+            dates = ym.group(0).strip()
+
+    header_wo = header
+    if dates:
+        header_wo = header.replace(dates, " ")
+        header_wo = re.sub(r"\s+", " ", header_wo).strip(" |-–—•")
+
+    title, company = "", ""
+    at_m = re.search(r"^(.+?)\s+at\s+(.+)$", header_wo, re.I)
+    if at_m:
+        title = at_m.group(1).strip(" |-–—")
+        company = at_m.group(2).strip(" |-–—")
+    elif "|" in header_wo:
+        parts = [p.strip() for p in re.split(r"\s*\|\s*", header_wo, 1)]
+        if len(parts) >= 2:
+            title, company = parts[0], parts[1]
+    elif re.search(r"[—–]", header_wo):
+        parts = re.split(r"\s*[—–]\s*", header_wo, 1)
+        title, company = parts[0].strip(), parts[1].strip() if len(parts) > 1 else ""
+    elif re.search(
+        r"\b(engineer|developer|manager|analyst|architect|lead|consultant|designer|scientist|intern|specialist|director)\b",
+        header_wo,
+        re.I,
+    ):
+        title = header_wo
+    else:
+        company = header_wo
+
+    return {
+        "title": title[:180],
+        "company": company[:180],
+        "dates": dates[:120],
+        "summary": summary_text,
+    }
+
+
+def _extract_work_history(exp_lines: list[str]) -> list[dict[str, str]]:
+    lines = [ln.strip() for ln in exp_lines if ln.strip()]
+    if not lines:
+        return []
+
+    paras: list[list[str]] = []
+    cur: list[str] = []
+    for ln in lines:
+        if _is_job_header_line(ln) and cur:
+            paras.append(cur)
+            cur = [ln]
+        elif _is_job_header_line(ln) and not cur:
+            cur = [ln]
+        else:
+            if not cur:
+                cur = [ln]
+            else:
+                cur.append(ln)
+    if cur:
+        paras.append(cur)
+
+    out: list[dict[str, str]] = []
+    for block in paras[:12]:
+        row = _parse_job_block(block)
+        if row.get("company") or row.get("title") or row.get("summary"):
+            out.append(row)
+    return out
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def parse_resume_from_lines(lines: list[str]) -> dict:
@@ -384,6 +487,8 @@ def parse_resume_from_lines(lines: list[str]) -> dict:
 
     looking_for = current_role if current_role else ""
 
+    work_history = _extract_work_history(sections.get("experience", []))
+
     return {
         "name": name,
         "email": email,
@@ -394,6 +499,7 @@ def parse_resume_from_lines(lines: list[str]) -> dict:
         "lookingFor": looking_for,
         "skills": skills,
         "bio": bio,
+        "workHistory": work_history,
         "rawLineCount": len(lines),
         "sectionsFound": [k for k, v in sections.items() if v and k not in ("header", "other")],
     }

@@ -100,6 +100,81 @@ export function hiringRowBusyKey(source, id) {
   return `${source === 'pipeline' ? 'pipeline' : 'referrals'}:${id}`
 }
 
+function normalizeHireTitle(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function collectHireTitleNorms(pipelineRole, jobTitleFromDoc) {
+  const set = new Set()
+  for (const t of [pipelineRole, jobTitleFromDoc]) {
+    const n = normalizeHireTitle(t)
+    if (n) set.add(n)
+  }
+  return set
+}
+
+function filterActiveReqsForHire(activeReqs, titleNorms) {
+  if (!titleNorms.size) return null
+  const list = Array.isArray(activeReqs) ? [...activeReqs] : []
+  const next = list.filter((r) => !titleNorms.has(normalizeHireTitle(r)))
+  return next.length === list.length ? null : next
+}
+
+/**
+ * When a hire is recorded: drop matching bounty slots on the referrer profile,
+ * delete the hired job (by id) and any other `jobs` docs with the same normalized title.
+ * Call from hiring-role clients or mirror in Admin SDK routes.
+ */
+export async function applyHireCloses(employeeId, { pipelineRole = null, jobId = null } = {}) {
+  if (!employeeId) return
+
+  let jobTitleFromDoc = ''
+  if (jobId) {
+    const js = await getDoc(doc(db, 'jobs', jobId))
+    if (js.exists()) {
+      jobTitleFromDoc = String(js.data().title || '').trim()
+    }
+  }
+
+  const titleNorms = collectHireTitleNorms(pipelineRole, jobTitleFromDoc)
+
+  const empRef = doc(db, 'employeeProfiles', employeeId)
+  const empSnap = await getDoc(empRef)
+  if (empSnap.exists()) {
+    const nextReqs = filterActiveReqsForHire(empSnap.data().activeReqs, titleNorms)
+    if (nextReqs != null) {
+      await updateDoc(empRef, { activeReqs: nextReqs })
+    }
+  }
+
+  if (jobId) {
+    try {
+      await deleteDoc(doc(db, 'jobs', jobId))
+    } catch (e) {
+      console.warn('[hiring] could not delete job by id:', jobId, e?.code || e)
+    }
+  }
+
+  if (!titleNorms.size) return
+
+  const jsnap = await getDocs(collection(db, 'jobs'))
+  const batch = writeBatch(db)
+  let n = 0
+  jsnap.forEach((d) => {
+    const t = normalizeHireTitle(d.data()?.title)
+    if (t && titleNorms.has(t)) {
+      batch.delete(d.ref)
+      n += 1
+    }
+  })
+  if (n > 0) {
+    await batch.commit()
+  }
+}
+
 export function referralToPipelineStatus(refStatus) {
   switch (refStatus) {
     case 'interview':
@@ -268,6 +343,10 @@ export async function updateReferralStatus(referralId, newStatus) {
   }
 
   const refRef = doc(db, 'referrals', referralId)
+  const preSnap = await getDoc(refRef)
+  if (!preSnap.exists()) throw new Error('Referral not found')
+  const preData = preSnap.data()
+  const prevStatus = preData.status
 
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(refRef)
@@ -304,6 +383,13 @@ export async function updateReferralStatus(referralId, newStatus) {
       transaction.update(empRef, patch)
     }
   })
+
+  if (newStatus === 'hired' && prevStatus !== 'hired' && preData.employeeId) {
+    await applyHireCloses(preData.employeeId, {
+      pipelineRole: null,
+      jobId: preData.jobId || null,
+    })
+  }
 }
 
 async function updatePipelineStatusFirestore(pipelineId, newReferralStatus) {
@@ -332,17 +418,24 @@ async function updatePipelineStatusFirestore(pipelineId, newReferralStatus) {
   }
 
   const employeeId = data.employeeId
-  if (!employeeId) return
+  if (employeeId) {
+    const empRef = doc(db, 'employeeProfiles', employeeId)
+    const empSnap = await getDoc(empRef)
+    if (empSnap.exists()) {
+      const patch = {}
+      if (karmaDelta > 0) patch.karmaScore = increment(karmaDelta)
+      if (newReferralStatus === 'hired' && prevReferral !== 'hired') patch.successfulReferrals = increment(1)
+      if (Object.keys(patch).length > 0) {
+        await updateDoc(empRef, patch)
+      }
+    }
+  }
 
-  const empRef = doc(db, 'employeeProfiles', employeeId)
-  const empSnap = await getDoc(empRef)
-  if (!empSnap.exists()) return
-
-  const patch = {}
-  if (karmaDelta > 0) patch.karmaScore = increment(karmaDelta)
-  if (newReferralStatus === 'hired' && prevReferral !== 'hired') patch.successfulReferrals = increment(1)
-  if (Object.keys(patch).length > 0) {
-    await updateDoc(empRef, patch)
+  if (newReferralStatus === 'hired' && prevReferral !== 'hired' && employeeId) {
+    await applyHireCloses(employeeId, {
+      pipelineRole: data.role || null,
+      jobId: null,
+    })
   }
 }
 

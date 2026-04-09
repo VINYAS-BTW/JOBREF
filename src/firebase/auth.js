@@ -71,6 +71,8 @@ export async function registerWithEmail(email, password, name, role, extra = {})
       createdAt:      serverTimestamp(),
       karmaScore:       0,
       successfulReferrals: 0,
+      annualSalary:     0,
+      showOpeningsPublic: true,
     })
   }
 
@@ -144,6 +146,8 @@ export async function completeGithubProfile(user, role, extra = {}) {
       createdAt:      serverTimestamp(),
       karmaScore:       0,
       successfulReferrals: 0,
+      annualSalary:     0,
+      showOpeningsPublic: true,
     })
   }
 }

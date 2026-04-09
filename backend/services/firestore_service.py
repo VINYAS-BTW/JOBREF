@@ -1,6 +1,9 @@
 """Firestore CRUD operations via Firebase Admin SDK."""
 
 from __future__ import annotations
+
+import re
+
 from google.cloud.firestore_v1 import FieldFilter
 from config import db
 from google.cloud import firestore
@@ -141,6 +144,70 @@ def pipeline_stage_for_native_status(native: str) -> int:
     }.get(native, 1)
 
 
+def _normalize_hire_title(s: str | None) -> str:
+    if not s or not isinstance(s, str):
+        return ""
+    return re.sub(r"\s+", " ", s.lower().strip())
+
+
+def _collect_hire_title_norms(pipeline_role: str | None, job_title_from_doc: str | None) -> set[str]:
+    out: set[str] = set()
+    for t in (pipeline_role, job_title_from_doc):
+        n = _normalize_hire_title(t)
+        if n:
+            out.add(n)
+    return out
+
+
+def _filter_active_reqs_after_hire(active_reqs: list | None, title_norms: set[str]) -> list | None:
+    if not title_norms:
+        return None
+    req_list = list(active_reqs or [])
+    nxt = [r for r in req_list if _normalize_hire_title(str(r)) not in title_norms]
+    return nxt if len(nxt) != len(req_list) else None
+
+
+def close_openings_after_hire(
+    employee_id: str,
+    *,
+    pipeline_role: str | None = None,
+    job_id: str | None = None,
+) -> None:
+    """Remove matching activeReqs, delete the job row(s) for that title (and job_id if set)."""
+    if not employee_id:
+        return
+
+    job_title_from_doc = ""
+    if job_id:
+        jsnap = db.collection("jobs").document(job_id).get()
+        if jsnap.exists:
+            job_title_from_doc = str((jsnap.to_dict() or {}).get("title") or "").strip()
+
+    title_norms = _collect_hire_title_norms(pipeline_role, job_title_from_doc or None)
+
+    emp_ref = db.collection("employeeProfiles").document(employee_id)
+    esnap = emp_ref.get()
+    if esnap.exists:
+        edata = esnap.to_dict() or {}
+        new_reqs = _filter_active_reqs_after_hire(edata.get("activeReqs"), title_norms)
+        if new_reqs is not None:
+            emp_ref.update({"activeReqs": new_reqs})
+
+    if job_id:
+        try:
+            db.collection("jobs").document(job_id).delete()
+        except Exception:
+            pass
+
+    if not title_norms:
+        return
+
+    for d in db.collection("jobs").stream():
+        t = _normalize_hire_title((d.to_dict() or {}).get("title"))
+        if t and t in title_norms:
+            d.reference.delete()
+
+
 def update_pipeline_status(pipeline_id: str, new_referral_status: str) -> None:
     """Mirror frontend hiringFirestore.updatePipelineStatus (Admin SDK bypasses client rules)."""
     if new_referral_status not in REFERRAL_STATUSES:
@@ -171,19 +238,20 @@ def update_pipeline_status(pipeline_id: str, new_referral_status: str) -> None:
         karma_delta += 25
 
     employee_id = data.get("employeeId")
-    if not employee_id:
-        return
-    emp_ref = db.collection("employeeProfiles").document(employee_id)
-    emp_snap = emp_ref.get()
-    if not emp_snap.exists:
-        return
-    patch: dict = {}
-    if karma_delta:
-        patch["karmaScore"] = firestore.Increment(karma_delta)
-    if new_referral_status == "hired" and prev_referral != "hired":
-        patch["successfulReferrals"] = firestore.Increment(1)
-    if patch:
-        emp_ref.update(patch)
+    if employee_id:
+        emp_ref = db.collection("employeeProfiles").document(employee_id)
+        emp_snap = emp_ref.get()
+        if emp_snap.exists:
+            patch: dict = {}
+            if karma_delta:
+                patch["karmaScore"] = firestore.Increment(karma_delta)
+            if new_referral_status == "hired" and prev_referral != "hired":
+                patch["successfulReferrals"] = firestore.Increment(1)
+            if patch:
+                emp_ref.update(patch)
+
+    if new_referral_status == "hired" and prev_referral != "hired" and employee_id:
+        close_openings_after_hire(employee_id, pipeline_role=data.get("role"), job_id=None)
 
 
 def delete_pipeline_document(pipeline_id: str) -> None:
@@ -286,6 +354,14 @@ def update_referral_status(referral_id: str, new_status: str) -> None:
         raise ValueError("invalid status")
 
     ref = db.collection("referrals").document(referral_id)
+    pre = ref.get()
+    if not pre.exists:
+        raise LookupError("referral not found")
+    pre_data = pre.to_dict() or {}
+    prev_status = pre_data.get("status")
+    hire_employee_id = pre_data.get("employeeId")
+    hire_job_id = pre_data.get("jobId")
+
     txn = db.transaction()
 
     @firestore.transactional
@@ -320,3 +396,6 @@ def update_referral_status(referral_id: str, new_status: str) -> None:
             transaction.update(emp_ref, patch)
 
     _body(txn)
+
+    if new_status == "hired" and prev_status != "hired" and hire_employee_id:
+        close_openings_after_hire(hire_employee_id, pipeline_role=None, job_id=hire_job_id)

@@ -62,6 +62,8 @@ async def parse_and_apply(
         update_data["bio"] = result["bio"]
     if result.get("skills"):
         update_data["skills"] = result["skills"]
+    if result.get("workHistory"):
+        update_data["workHistory"] = result["workHistory"]
 
     if update_data:
         update_candidate_profile(candidateId, update_data)

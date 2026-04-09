@@ -36,6 +36,7 @@ import {
   ArrowRight,
   ChevronLeft,
   Shield,
+  Briefcase,
 } from "lucide-react";
 import { fetchAPI, uploadResume } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -187,11 +188,34 @@ const normalizeSkillList = (skills = []) => {
   return out;
 };
 
+const normalizeResumeEmail = (raw) => {
+  if (raw == null || typeof raw !== "string") return "";
+  const s = raw.trim().toLowerCase();
+  if (!s || !s.includes("@")) return "";
+  // Loose check — backend already extracted via regex; avoid junk one-char "emails"
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return "";
+  return s;
+};
+
+const normalizeWorkHistory = (raw) => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((w) => ({
+      company: String(w?.company ?? "").trim().slice(0, 200),
+      title: String(w?.title ?? "").trim().slice(0, 200),
+      dates: String(w?.dates ?? "").trim().slice(0, 120),
+      summary: String(w?.summary ?? "").trim().slice(0, 500),
+    }))
+    .filter((w) => w.company || w.title || w.summary)
+    .slice(0, 12);
+};
+
 const normalizeParsedResume = (parsed) => {
   if (!parsed || typeof parsed !== "object") return parsed;
   return {
     ...parsed,
     name: parsed.name ? titleCaseWords(parsed.name) : parsed.name,
+    email: normalizeResumeEmail(parsed.email),
     currentRole: parsed.currentRole
       ? canonicalRole(parsed.currentRole)
       : parsed.currentRole,
@@ -203,6 +227,7 @@ const normalizeParsedResume = (parsed) => {
       : parsed.lookingFor,
     bio: parsed.bio ? parsed.bio.trim().replace(/\s+/g, " ") : parsed.bio,
     skills: normalizeSkillList(parsed.skills || []),
+    workHistory: normalizeWorkHistory(parsed.workHistory),
   };
 };
 
@@ -210,6 +235,13 @@ const hasText = (value) => typeof value === "string" && value.trim().length > 0;
 
 const pickText = (value, fallback) =>
   hasText(value) ? value.trim() : fallback;
+
+/** Referrer reputation (0–5 scale) shown with two decimal places. */
+const formatReferrerReputation = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0.00";
+  return Math.min(5, Math.max(0, n)).toFixed(2);
+};
 
 const getEnhancedProfile = (profile) => {
   const source = profile || {};
@@ -251,6 +283,7 @@ const getEnhancedProfile = (profile) => {
         : normalizeSkillList(DEFAULT_CANDIDATE_PROFILE.skills),
     githubConnected: source.githubConnected !== false,
     leetcodeConnected: source.leetcodeConnected !== false,
+    workHistory: normalizeWorkHistory(source.workHistory),
   };
 };
 
@@ -1260,6 +1293,7 @@ function ProfilePage({ profile, onUpdateProfile }) {
     const normalizedParsed = normalizeParsedResume(parsed);
     const update = {};
     if (normalizedParsed.name) update.name = normalizedParsed.name;
+    if (normalizedParsed.email) update.email = normalizedParsed.email;
     if (normalizedParsed.currentRole)
       update.currentRole = normalizedParsed.currentRole;
     if (normalizedParsed.yearsExperience)
@@ -1270,6 +1304,8 @@ function ProfilePage({ profile, onUpdateProfile }) {
     if (normalizedParsed.bio) update.bio = normalizedParsed.bio;
     if (normalizedParsed.skills?.length)
       update.skills = normalizedParsed.skills;
+    if (normalizedParsed.workHistory?.length)
+      update.workHistory = normalizedParsed.workHistory;
 
     onUpdateProfile(update);
     setParsed(null);
@@ -1360,6 +1396,46 @@ function ProfilePage({ profile, onUpdateProfile }) {
             </p>
           </div>
         </div>
+
+        {normalizeWorkHistory(profile?.workHistory).length > 0 && (
+          <div className="mt-4 pt-4 border-t border-white/8">
+            <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-2">
+              Work experience
+            </p>
+            <ul className="space-y-3">
+              {normalizeWorkHistory(profile?.workHistory).map((job, idx) => (
+                <li
+                  key={`${job.company}-${job.title}-${idx}`}
+                  className="bg-white/[0.02] border border-white/6 rounded-sm px-3 py-2.5"
+                >
+                  <div className="flex items-start gap-2">
+                    <Briefcase
+                      size={12}
+                      className="text-[#C8FF00] shrink-0 mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[12px] text-[#E8E6E1] font-medium">
+                        {[job.title, job.company].filter(Boolean).join(" · ") ||
+                          job.company ||
+                          job.title}
+                      </p>
+                      {job.dates && (
+                        <p className="text-[10px] text-[#A09E9A] mt-0.5">
+                          {job.dates}
+                        </p>
+                      )}
+                      {job.summary && (
+                        <p className="text-[11px] text-[#6B6966] mt-1.5 leading-relaxed">
+                          {job.summary}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="mt-3">
           <p className="text-[10px] text-[#6B6966] uppercase tracking-wider mb-1.5">
@@ -1683,6 +1759,46 @@ function ProfilePage({ profile, onUpdateProfile }) {
                   ? parsed.sectionsFound.join(", ")
                   : "header only"}
               </p>
+              {normalizeWorkHistory(parsed.workHistory).length > 0 && (
+                <div className="rounded-sm border border-white/8 bg-white/[0.02] p-3 space-y-2.5">
+                  <p className="text-[10px] text-[#6B6966] uppercase tracking-wider font-medium">
+                    Work experience (from resume)
+                  </p>
+                  <ul className="space-y-2.5 max-h-52 overflow-y-auto">
+                    {normalizeWorkHistory(parsed.workHistory).map((job, idx) => (
+                      <li
+                        key={`${job.company}-${job.title}-${idx}`}
+                        className="border-l-2 border-[#C8FF00]/40 pl-2.5"
+                      >
+                        <div className="flex items-start gap-2">
+                          <Briefcase
+                            size={12}
+                            className="text-[#C8FF00] shrink-0 mt-0.5"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[12px] text-[#E8E6E1] font-medium leading-snug">
+                              {[job.title, job.company].filter(Boolean).join(" · ") ||
+                                job.company ||
+                                job.title ||
+                                "Role"}
+                            </p>
+                            {job.dates && (
+                              <p className="text-[10px] text-[#A09E9A] mt-0.5">
+                                {job.dates}
+                              </p>
+                            )}
+                            {job.summary && (
+                              <p className="text-[11px] text-[#6B6966] mt-1 leading-relaxed line-clamp-3">
+                                {job.summary}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => {
@@ -2017,7 +2133,7 @@ function DiscoverPage({ referrers, onRequest }) {
               <div className="flex items-center w-full sm:w-auto justify-between sm:justify-end gap-6 mt-2 sm:mt-0">
                 <div className="hidden lg:flex items-center gap-1 text-[11px] text-[#6B6966] shrink-0">
                   <Star size={10} className="text-amber-400" />
-                  {r.reputation}
+                  {formatReferrerReputation(r.reputation)}
                   <span className="text-[#3D3B38] ml-1">{r.refs} refs</span>
                 </div>
                 <div className="text-left sm:text-right shrink-0">
@@ -2573,7 +2689,7 @@ function AIMatchPage({ recommendations, profile, onRequest, tokens }) {
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="hidden sm:flex items-center gap-1 text-[10px] text-[#6B6966]">
                     <Star size={9} className="text-amber-400" />
-                    {rec.reputation}
+                    {formatReferrerReputation(rec.reputation)}
                   </div>
                   <button
                     onClick={(e) => {

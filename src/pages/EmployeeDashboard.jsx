@@ -60,6 +60,31 @@ const STATUS_CFG = {
   declined:      { label: 'Declined',       color: C.subtle,  bg: C.surface,    border: C.border        },
 }
 
+function reputationDisplayValue(raw) {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return '0.00'
+  const clamped = Math.min(5, Math.max(0, n))
+  return clamped.toFixed(2)
+}
+
+function incentivePerHireUsd(annualSalary) {
+  const s = Math.max(0, Number(annualSalary) || 0)
+  return Math.round(s * 0.1)
+}
+
+function normalizeCandidateWorkHistory(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((w) => ({
+      company: String(w?.company ?? '').trim().slice(0, 200),
+      title: String(w?.title ?? '').trim().slice(0, 200),
+      dates: String(w?.dates ?? '').trim().slice(0, 120),
+      summary: String(w?.summary ?? '').trim().slice(0, 500),
+    }))
+    .filter((w) => w.company || w.title || w.summary)
+    .slice(0, 12)
+}
+
 // ── Animation Presets ──────────────────────────────────────────────────────────
 const stagger   = { show: { transition: { staggerChildren: 0.065 } } }
 const fadeUp    = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.38, ease: [0.22,1,0.36,1] } } }
@@ -246,6 +271,7 @@ function CandidateModal({ candidate, onClose, onDecide, employeeProfile, onReque
   }
 
   const matchColor = candidate.match >= 80 ? C.accent : candidate.match >= 65 ? C.amber : C.subtle
+  const workHistory = normalizeCandidateWorkHistory(candidate._candidateProfile?.workHistory)
 
   const runSimulation = async () => {
     setSimRunning(true)
@@ -447,6 +473,22 @@ function CandidateModal({ candidate, onClose, onDecide, employeeProfile, onReque
                     <span className="text-xs truncate" style={{ color: C.secondary }}>{candidate.email}</span>
                   </div>
                 </div>
+                {workHistory.length > 0 && (
+                  <div className="rounded-sm p-4 space-y-2" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: C.muted }}>Work experience (from profile)</p>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {workHistory.map((job, idx) => (
+                        <div key={`${job.company}-${job.title}-${idx}`} className="pl-2" style={{ borderLeft: `2px solid ${C.accentBorder}` }}>
+                          <p className="text-xs font-medium" style={{ color: C.primary }}>
+                            {[job.title, job.company].filter(Boolean).join(' · ') || job.company || job.title}
+                          </p>
+                          {job.dates && <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>{job.dates}</p>}
+                          {job.summary && <p className="text-[10px] mt-1 leading-relaxed" style={{ color: C.subtle }}>{job.summary}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {simResult && (
                   <div className="rounded-sm p-4" style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.2)' }}>
                     <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: '#A855F7' }}>Simulation Summary</p>
@@ -497,12 +539,35 @@ function CandidateModal({ candidate, onClose, onDecide, employeeProfile, onReque
                     <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: C.muted }}>Skills</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {candidate.skills.map(s => (
+                    {(candidate.skills || []).map(s => (
                       <span key={s} className="text-[11px] px-2.5 py-1 rounded-sm"
                         style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.secondary }}>{s}</span>
                     ))}
                   </div>
                 </motion.div>
+                {workHistory.length > 0 && (
+                  <motion.div variants={fadeUp}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Briefcase size={10} style={{ color: C.accent }} />
+                      <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: C.muted }}>Work experience (resume)</span>
+                    </div>
+                    <div className="rounded-sm p-3 space-y-2.5 max-h-48 overflow-y-auto" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                      {workHistory.map((job, idx) => (
+                        <div key={`${job.company}-${job.title}-${idx}`} className="pl-2.5" style={{ borderLeft: `2px solid ${C.accentBorder}` }}>
+                          <p className="text-xs font-medium" style={{ color: C.primary }}>
+                            {[job.title, job.company].filter(Boolean).join(' · ') || job.company || job.title || 'Role'}
+                          </p>
+                          {job.dates && (
+                            <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>{job.dates}</p>
+                          )}
+                          {job.summary && (
+                            <p className="text-[10px] mt-1 leading-relaxed line-clamp-4" style={{ color: C.subtle }}>{job.summary}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
                 <motion.div variants={fadeUp} className="grid grid-cols-3 gap-2">
                   {[
                     { label: 'Commits', value: candidate.GitBranch?.commits ?? '—', sub: candidate.GitBranch ? `${candidate.GitBranch.streak}d streak` : '—', icon: GitBranch },
@@ -855,7 +920,7 @@ function CandidateModal({ candidate, onClose, onDecide, employeeProfile, onReque
 }
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────
-function Sidebar({ active, setActive, inboxCount, navigate, profile }) {
+function Sidebar({ active, setActive, inboxCount, navigate, profile, activeReqs, openingsPublic }) {
   const primary = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'talent',    icon: BrainCircuit,    label: 'AI Talent Scout' },
@@ -906,6 +971,34 @@ function Sidebar({ active, setActive, inboxCount, navigate, profile }) {
           <div className="text-[11px] font-medium" style={{ color: C.secondary }}>{profile?.visibleAs || profile?.alias || 'Anonymous Referrer'}</div>
         </div>
 
+        <div className="mx-2 mb-5 px-2.5 py-2 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="flex items-center justify-between gap-1 mb-1.5">
+            <div className="text-[10px]" style={{ color: C.muted }}>Open roles you refer for</div>
+            <span
+              className="text-[9px] font-medium px-1.5 py-0.5 rounded-sm shrink-0"
+              style={{
+                background: openingsPublic ? C.emeraldDim : C.amberDim,
+                color: openingsPublic ? C.emerald : C.amber,
+                border: `1px solid ${openingsPublic ? C.emeraldBorder : C.amberBorder}`,
+              }}
+            >
+              {openingsPublic ? 'Public' : 'Hidden'}
+            </span>
+          </div>
+          {(activeReqs || []).length === 0 ? (
+            <p className="text-[10px] leading-relaxed" style={{ color: C.subtle }}>Add roles under Preferences → Active Requisitions.</p>
+          ) : (
+            <ul className="space-y-1 max-h-28 overflow-y-auto">
+              {(activeReqs || []).map((r) => (
+                <li key={r} className="flex items-start gap-1.5 text-[10px]" style={{ color: C.secondary }}>
+                  <Briefcase size={10} className="shrink-0 mt-0.5" style={{ color: C.accent }} />
+                  <span className="leading-snug">{r}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         <div className="mb-2">
           <div className="px-3 mb-1">
             <span className="text-[9px] uppercase tracking-widest" style={{ color: C.muted }}>Main</span>
@@ -937,7 +1030,7 @@ function Sidebar({ active, setActive, inboxCount, navigate, profile }) {
 }
 
 // ── Topbar ─────────────────────────────────────────────────────────────────────
-function Topbar({ reputation, totalBounty }) {
+function Topbar({ reputationDisplay, totalBountyLabel }) {
   return (
     <div className="sticky top-0 z-20 h-14 px-6 md:px-8 flex items-center justify-between shrink-0"
       style={{ borderBottom:`1px solid ${C.border}`, background:'rgba(17,19,21,0.92)', backdropFilter:'blur(12px)' }}>
@@ -946,12 +1039,12 @@ function Topbar({ reputation, totalBounty }) {
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
           style={{ background: C.amberDim, border: `1px solid ${C.amberBorder}` }}>
           <Star size={10} style={{ color: C.amber }} />
-          <span className="text-xs font-semibold" style={{ color: C.amber }}>{reputation}</span>
+          <span className="text-xs font-semibold" style={{ color: C.amber }}>{reputationDisplay}</span>
           <span className="text-[10px]" style={{ color: 'rgba(245,158,11,0.5)' }}>rep</span>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
           style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}` }}>
-          <span className="text-xs font-semibold" style={{ color: C.accent }}>{totalBounty}</span>
+          <span className="text-xs font-semibold" style={{ color: C.accent }}>{totalBountyLabel}</span>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
           style={{ background: C.surface, border: `1px solid ${C.border}` }}>
@@ -964,14 +1057,14 @@ function Topbar({ reputation, totalBounty }) {
 }
 
 // ── Dashboard Tab ──────────────────────────────────────────────────────────────
-function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty, setActive, topRecs }) {
+function DashboardTab({ inbox, reputationRaw, reputationDisplay, successfulHires, totalBounty, pendingBounty, perHireUsd, salaryConfigured, setActive, topRecs }) {
   const tiers = [
     { name:'Bronze',   min:0,   max:3.5 },
     { name:'Silver',   min:3.5, max:4.2 },
     { name:'Gold',     min:4.2, max:4.7 },
     { name:'Platinum', min:4.7, max:5   },
   ]
-  const currentTier = tiers.find(t => reputation >= t.min && reputation < t.max) || tiers[3]
+  const currentTier = tiers.find(t => reputationRaw >= t.min && reputationRaw < t.max) || tiers[3]
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
@@ -982,11 +1075,18 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
 
       <motion.div variants={fadeUp} className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label:'Total Earned',    value:`$${totalBounty.toLocaleString()}`, icon:DollarSign, hi: C.accent },
-          { label:'Reputation',      value:reputation,                         icon:Star,       hi: C.amber,  sub:'/ 5.0' },
-          { label:'Successful Refs', value:totalRefs,                          icon:Award,      hi: C.primary },
+          {
+            label: 'Total Earned',
+            value: salaryConfigured ? `$${totalBounty.toLocaleString()}` : '—',
+            icon: DollarSign,
+            hi: C.accent,
+            sub: salaryConfigured ? `(10% × salary × ${successfulHires} hire${successfulHires === 1 ? '' : 's'})` : 'Set salary in Preferences',
+            subBlock: true,
+          },
+          { label:'Reputation',      value:reputationDisplay,                  icon:Star,       hi: C.amber,  sub:'/ 5.00' },
+          { label:'Successful hires', value:successfulHires,                   icon:Award,      hi: C.primary },
           { label:'Pending Review',  value:inbox.length,                       icon:Bell,       hi: C.primary },
-        ].map(({ label, value, icon:Icon, hi, sub }) => (
+        ].map(({ label, value, icon:Icon, hi, sub, subBlock }) => (
           <div key={label} className="rounded-sm p-4 transition-colors"
             style={{ background: C.surface, border: `1px solid ${C.border}` }}>
             <div className="flex items-center justify-between mb-2.5">
@@ -994,11 +1094,23 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
               <Icon size={11} style={{ color: hi }} />
             </div>
             <div className="text-xl font-bold" style={{ color: hi, ...serif }}>
-              {value}{sub && <span className="text-sm font-normal ml-1" style={{ color: C.muted }}>{sub}</span>}
+              {value}
+              {sub && !subBlock && <span className="text-sm font-normal ml-1" style={{ color: C.muted }}>{sub}</span>}
+              {sub && subBlock && (
+                <div className="text-[10px] font-normal mt-1 leading-snug" style={{ color: C.muted }}>{sub}</div>
+              )}
             </div>
           </div>
         ))}
       </motion.div>
+
+      {salaryConfigured && perHireUsd > 0 && (
+        <motion.p variants={fadeUp} className="text-[10px]" style={{ color: C.muted }}>
+          Per-hire incentive (10% of annual salary): <span style={{ color: C.secondary }}>${perHireUsd.toLocaleString()}</span>
+          {' · '}
+          Pending pipeline (not hired/declined): <span style={{ color: C.secondary }}>${pendingBounty.toLocaleString()}</span>
+        </motion.p>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
@@ -1010,7 +1122,7 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
             Your score rises with successful hires and falls with low-signal referrals. Higher tiers unlock premium profiles and bigger bounty splits.
           </p>
           <div className="h-1 rounded-full mb-3" style={{ background: 'rgba(255,255,255,0.05)' }}>
-            <motion.div initial={{ width:0 }} animate={{ width:`${(reputation/5)*100}%` }}
+            <motion.div initial={{ width:0 }} animate={{ width:`${(reputationRaw/5)*100}%` }}
               transition={{ duration:1, ease:[0.22,1,0.36,1] }}
               className="h-full rounded-full" style={{ background: C.accent }} />
           </div>
@@ -1042,8 +1154,16 @@ function DashboardTab({ inbox, reputation, totalRefs, totalBounty, pendingBounty
           </p>
           <div className="space-y-2">
             {[
-              { label:'Lifetime earned', value:`$${totalBounty.toLocaleString()}`, color: C.accent },
-              { label:'Pending release', value:`$${pendingBounty.toLocaleString()}`, color: C.amber },
+              {
+                label: 'Lifetime earned',
+                value: salaryConfigured ? `$${totalBounty.toLocaleString()}` : '—',
+                color: C.accent,
+              },
+              {
+                label: 'Pending release',
+                value: salaryConfigured ? `$${pendingBounty.toLocaleString()}` : '—',
+                color: C.amber,
+              },
               { label:'Next payout',     value:'Next month',  color: C.secondary },
             ].map(({ label, value, color }) => (
               <div key={label} className="flex items-center justify-between py-1.5"
@@ -1285,20 +1405,20 @@ function PipelineTab({ pipeline }) {
 }
 
 // ── Bounty & Reputation Tab ────────────────────────────────────────────────────
-function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
+function BountyTab({ reputationRaw, reputationDisplay, successfulHires, totalBounty, pendingBounty, perHireUsd, salaryConfigured }) {
   const tiers = [
     { name:'Bronze',   min:0,   max:3.5, mult:'1x',  perk:'Standard queue access',            cap:'$500/hire'   },
     { name:'Silver',   min:3.5, max:4.2, mult:'1.2x', perk:'Priority matching + early access', cap:'$1,000/hire' },
     { name:'Gold',     min:4.2, max:4.7, mult:'1.5x', perk:'Premium profiles + fast-track',    cap:'$2,500/hire' },
     { name:'Platinum', min:4.7, max:5,   mult:'2x',   perk:'Top 1% candidates + white-glove',  cap:'$5,000/hire' },
   ]
-  const currentTier = tiers.find(t => reputation >= t.min && reputation < t.max) || tiers[3]
+  const currentTier = tiers.find(t => reputationRaw >= t.min && reputationRaw < t.max) || tiers[3]
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
       <motion.div variants={fadeUp}>
         <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...heading }}>Bounty & Reputation</h1>
-        <p className="text-sm" style={{ color: C.subtle }}>Your trust score and fractional referral earnings.</p>
+        <p className="text-sm" style={{ color: C.subtle }}>Trust score (shown to two decimal places) and incentive at 10% of your annual salary per successful hire.</p>
       </motion.div>
 
       <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border:`1px solid ${C.border}` }}>
@@ -1313,11 +1433,11 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
           </span>
         </div>
         <div className="flex items-end gap-3 mb-4">
-          <div className="text-4xl font-bold" style={{ color: C.accent, ...serif }}>{reputation}</div>
-          <div className="text-base mb-1" style={{ color: C.muted }}>/ 5.0</div>
+          <div className="text-4xl font-bold" style={{ color: C.accent, ...serif }}>{reputationDisplay}</div>
+          <div className="text-base mb-1" style={{ color: C.muted }}>/ 5.00</div>
         </div>
         <div className="h-1.5 rounded-full mb-4" style={{ background:'rgba(255,255,255,0.05)' }}>
-          <motion.div initial={{ width:0 }} animate={{ width:`${(reputation/5)*100}%` }}
+          <motion.div initial={{ width:0 }} animate={{ width:`${(reputationRaw/5)*100}%` }}
             transition={{ duration:1.1, ease:[0.22,1,0.36,1] }}
             className="h-full rounded-full" style={{ background: C.accent }} />
         </div>
@@ -1339,9 +1459,19 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
 
       <motion.div variants={fadeUp} className="grid grid-cols-3 gap-3">
         {[
-          { label:'Lifetime Earned', value:`$${totalBounty.toLocaleString()}`, color: C.accent,   icon: DollarSign },
-          { label:'Pending Release', value:`$${pendingBounty.toLocaleString()}`, color: C.amber,  icon: Clock      },
-          { label:'Total Referrals', value: totalRefs,                          color: C.primary, icon: Users      },
+          {
+            label: 'Lifetime Earned',
+            value: salaryConfigured ? `$${totalBounty.toLocaleString()}` : '—',
+            color: C.accent,
+            icon: DollarSign,
+          },
+          {
+            label: 'Pending Release',
+            value: salaryConfigured ? `$${pendingBounty.toLocaleString()}` : '—',
+            color: C.amber,
+            icon: Clock,
+          },
+          { label:'Successful hires', value: successfulHires, color: C.primary, icon: Users },
         ].map(({ label, value, color, icon:Icon }) => (
           <div key={label} className="rounded-sm p-4" style={{ background: C.surface, border:`1px solid ${C.border}` }}>
             <div className="flex items-center justify-between mb-2.5">
@@ -1352,6 +1482,12 @@ function BountyTab({ reputation, totalRefs, totalBounty, pendingBounty }) {
           </div>
         ))}
       </motion.div>
+
+      {salaryConfigured && perHireUsd > 0 && (
+        <motion.p variants={fadeUp} className="text-[10px] -mt-2" style={{ color: C.muted }}>
+          Per hire: ${perHireUsd.toLocaleString()} (10% of annual salary). Pending release counts active pipeline rows only.
+        </motion.p>
+      )}
 
       <motion.div variants={fadeUp} className="rounded-sm p-5" style={{ background: C.surface, border:`1px solid ${C.border}` }}>
         <div className="flex items-center gap-2 mb-4">
@@ -1384,6 +1520,17 @@ function SettingsTab({ profile, onUpdate }) {
   const [input, setInput] = useState('')
   const [reqs, setReqs]   = useState(profile?.activeReqs || [])
   const [reqInput, setReqInput] = useState('')
+  const [salaryInput, setSalaryInput] = useState(
+    () => (profile?.annualSalary != null && profile.annualSalary !== '' ? String(profile.annualSalary) : ''),
+  )
+
+  useEffect(() => {
+    setStack(profile?.stack || [])
+    setReqs(profile?.activeReqs || [])
+    setSalaryInput(profile?.annualSalary != null && profile.annualSalary !== '' ? String(profile.annualSalary) : '')
+  }, [profile?.stack, profile?.activeReqs, profile?.annualSalary])
+
+  const showOpeningsPublic = profile?.showOpeningsPublic !== false
 
   const addTag = () => {
     if (!input.trim()) return
@@ -1411,14 +1558,63 @@ function SettingsTab({ profile, onUpdate }) {
     onUpdate({ activeReqs: updated })
   }
 
+  const saveAnnualSalary = () => {
+    const digits = String(salaryInput).replace(/\D/g, '')
+    const n = digits === '' ? 0 : parseInt(digits, 10)
+    if (!Number.isFinite(n) || n < 0) return
+    onUpdate({ annualSalary: n })
+  }
+
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5 max-w-xl">
       <motion.div variants={fadeUp}>
         <h1 className="text-xl font-bold mb-0.5" style={{ color: C.primary, ...heading }}>Preferences</h1>
-        <p className="text-sm" style={{ color: C.subtle }}>Configure your anonymous profile and matching criteria.</p>
+        <p className="text-sm" style={{ color: C.subtle }}>Configure your anonymous profile, salary-based incentive, and which openings candidates see.</p>
       </motion.div>
 
       {[
+        { title:'Incentive & visibility', desc:'Bounty figures use 10% of annual salary per successful hire. Control whether your role list appears on candidate discover.', content:(
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] uppercase tracking-widest block mb-1.5" style={{ color: C.muted }}>Annual salary (USD, gross)</label>
+              <div className="flex gap-2">
+                <input
+                  value={salaryInput}
+                  onChange={(e) => setSalaryInput(e.target.value)}
+                  onBlur={saveAnnualSalary}
+                  onKeyDown={(e) => e.key === 'Enter' && saveAnnualSalary()}
+                  placeholder="e.g. 150000"
+                  inputMode="numeric"
+                  className="flex-1 text-xs px-3 py-2 rounded-sm outline-none"
+                  style={{ background: C.surface, border:`1px solid ${C.border}`, color: C.primary, caretColor: C.accent }}
+                />
+                <button type="button" onClick={saveAnnualSalary} className="px-3 py-2 text-xs rounded-sm shrink-0"
+                  style={{ background: C.accentDim, border:`1px solid ${C.accentBorder}`, color: C.accent }}>
+                  Save
+                </button>
+              </div>
+              <p className="text-[10px] mt-1.5" style={{ color: C.muted }}>Total earned = round(10% × salary) × successful hires. Pending = per-hire amount × active pipeline rows (not hired/declined).</p>
+            </div>
+            <div className="flex items-start justify-between gap-3 py-2" style={{ borderTop:`1px solid ${C.border}` }}>
+              <div>
+                <p className="text-xs font-medium" style={{ color: C.primary }}>Show openings to candidates</p>
+                <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>When off, your Active Requisitions are hidden from discover and matching; you can still refer internally.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdate({ showOpeningsPublic: !showOpeningsPublic })}
+                className="shrink-0 px-3 py-1.5 text-[10px] font-semibold rounded-sm"
+                style={{
+                  background: showOpeningsPublic ? C.emeraldDim : C.surface,
+                  border: `1px solid ${showOpeningsPublic ? C.emeraldBorder : C.border}`,
+                  color: showOpeningsPublic ? C.emerald : C.subtle,
+                }}
+              >
+                {showOpeningsPublic ? 'On' : 'Off'}
+              </button>
+            </div>
+          </div>
+        )},
         { title:'Anonymous Profile', desc:'Your public identity on the platform', content:(
           <div className="space-y-3">
             {[
@@ -1998,10 +2194,20 @@ export default function EmployeeDashboard({ navigate }) {
     return () => { cancelled = true }
   }, [inbox, profile])
 
-  const reputation    = profile?.reputation ?? 3.5
-  const totalRefs     = profile?.totalRefs ?? 0
-  const totalBounty   = profile?.totalBounty ?? 0
-  const pendingBounty = profile?.pendingBounty ?? 0
+  const reputationRaw = profile?.reputation ?? 3.5
+  const reputationDisplay = reputationDisplayValue(reputationRaw)
+  const successfulHires = profile?.successfulReferrals ?? 0
+  const annualSalary = profile?.annualSalary ?? 0
+  const salaryConfigured = Number(annualSalary) > 0
+  const perHireUsd = incentivePerHireUsd(annualSalary)
+  const activePipelineCount = pipeline.filter(
+    (p) => p.status !== 'hired' && p.status !== 'declined',
+  ).length
+  const totalBountyComputed = perHireUsd * successfulHires
+  const pendingBountyComputed = perHireUsd * activePipelineCount
+  const totalBountyLabel = salaryConfigured
+    ? `$${totalBountyComputed.toLocaleString()}`
+    : 'Set salary'
 
   const handleSelectTalent = (rec) => {
     const normalized = {
@@ -2079,16 +2285,35 @@ export default function EmployeeDashboard({ navigate }) {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: C.bg, fontFamily: 'var(--font-info)' }}>
-      <Sidebar active={tab} setActive={setTab} inboxCount={enrichedInbox.length} navigate={navigate} profile={profile} />
+      <Sidebar
+        active={tab}
+        setActive={setTab}
+        inboxCount={enrichedInbox.length}
+        navigate={navigate}
+        profile={profile}
+        activeReqs={profile?.activeReqs}
+        openingsPublic={profile?.showOpeningsPublic !== false}
+      />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Topbar reputation={reputation} totalBounty={`$${totalBounty.toLocaleString()}`} />
+        <Topbar reputationDisplay={reputationDisplay} totalBountyLabel={totalBountyLabel} />
         <div className="flex-1 overflow-y-auto px-6 md:px-8 py-7">
           <div className="max-w-4xl mx-auto">
             <AnimatePresence mode="wait">
               {tab === 'dashboard' && (
                 <motion.div key="dash" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
-                  <DashboardTab inbox={enrichedInbox} reputation={reputation} totalRefs={totalRefs} totalBounty={totalBounty} pendingBounty={pendingBounty} setActive={setTab} topRecs={employerRecs.slice(0, 3)} />
+                  <DashboardTab
+                    inbox={enrichedInbox}
+                    reputationRaw={reputationRaw}
+                    reputationDisplay={reputationDisplay}
+                    successfulHires={successfulHires}
+                    totalBounty={totalBountyComputed}
+                    pendingBounty={pendingBountyComputed}
+                    perHireUsd={perHireUsd}
+                    salaryConfigured={salaryConfigured}
+                    setActive={setTab}
+                    topRecs={employerRecs.slice(0, 3)}
+                  />
                 </motion.div>
               )}
               {tab === 'talent' && (
@@ -2108,7 +2333,15 @@ export default function EmployeeDashboard({ navigate }) {
               )}
               {tab === 'bounty' && (
                 <motion.div key="bounty" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
-                  <BountyTab reputation={reputation} totalRefs={totalRefs} totalBounty={totalBounty} pendingBounty={pendingBounty} />
+                  <BountyTab
+                    reputationRaw={reputationRaw}
+                    reputationDisplay={reputationDisplay}
+                    successfulHires={successfulHires}
+                    totalBounty={totalBountyComputed}
+                    pendingBounty={pendingBountyComputed}
+                    perHireUsd={perHireUsd}
+                    salaryConfigured={salaryConfigured}
+                  />
                 </motion.div>
               )}
               {tab === 'settings' && (

@@ -1,7 +1,7 @@
 """Pydantic request/response models for all API endpoints."""
 
 from __future__ import annotations
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any
 
 
@@ -176,6 +176,16 @@ class ReferralDraftOut(BaseModel):
 
 # ── Resume Parser ────────────────────────────────────────────────────────────
 
+
+class WorkHistoryItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    company: str = ""
+    title: str = ""
+    dates: str = ""
+    summary: str = ""
+
+
 class ResumeParseOut(BaseModel):
     name: str = ""
     email: str = ""
@@ -186,6 +196,7 @@ class ResumeParseOut(BaseModel):
     lookingFor: str = ""
     skills: list[str] = []
     bio: str = ""
+    workHistory: list[WorkHistoryItem] = Field(default_factory=list)
     rawLineCount: int = 0
     sectionsFound: list[str] = []
     applied: bool = False
