@@ -513,32 +513,84 @@ function SH({ title, sub, action, onAction }) {
 // REQUEST MODAL — role dropdown (referrer activeReqs) + Gemini pitch draft
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RequestModal({ referrer, tokens, onClose, onSend }) {
+function RequestModal({ referrer, tokens, candidateId, profile, onClose, onSend }) {
+  const roleOptions = referrer.activeReqs?.filter(Boolean) ?? [];
   const [pitch, setPitch] = useState("");
-  const [selectedReq, setSelectedReq] = useState(
-    referrer.activeReqs?.[0] || "",
-  );
+  const [selectedReq, setSelectedReq] = useState(roleOptions[0] || "");
+  const [customRole, setCustomRole] = useState("");
   const [isDrafting, setIsDrafting] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const handleAIDraft = () => {
+  const activeReqsKey = roleOptions.join("|");
+  useEffect(() => {
+    const opts = referrer.activeReqs?.filter(Boolean) ?? [];
+    setSelectedReq(opts[0] || "");
+    setCustomRole("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeReqsKey encodes referrer.activeReqs
+  }, [referrer.id, activeReqsKey]);
+
+  const effectiveRole = roleOptions.length
+    ? (selectedReq || "").trim()
+    : customRole.trim();
+
+  const handleAIDraft = async () => {
+    if (!effectiveRole || !candidateId) return;
     setIsDrafting(true);
-    setTimeout(() => {
+    try {
+      const res = await fetchAPI("/recommendations/referral-draft", {
+        candidateId,
+        employeeId: referrer.id,
+        targetRole: effectiveRole,
+      });
+      const text = String(res?.draft || "")
+        .trim()
+        .slice(0, 200);
+      if (text) {
+        setPitch(text);
+      } else {
+        const first = (profile?.name || "I").trim().split(/\s+/)[0] || "I";
+        const sk = Array.isArray(profile?.skills) ? profile.skills : [];
+        const skills =
+          sk
+            .slice(0, 4)
+            .map(String)
+            .filter(Boolean)
+            .join(", ") || "relevant experience";
+        setPitch(
+          `${first} here — seeking a referral for ${effectiveRole}. Strong fit through ${skills}; I'd value an intro.`.slice(
+            0,
+            200,
+          ),
+        );
+      }
+    } catch {
+      const first = (profile?.name || "I").trim().split(/\s+/)[0] || "I";
+      const sk = Array.isArray(profile?.skills) ? profile.skills : [];
+      const skills =
+        sk
+          .slice(0, 4)
+          .map(String)
+          .filter(Boolean)
+          .join(", ") || "relevant experience";
       setPitch(
-        `My recent work with scalable architectures perfectly matches the ${selectedReq} requirements. With my strong background in ${referrer.stack[0]} and ${referrer.stack[1]}, I can contribute immediately to your team. I would greatly appreciate a referral.`,
+        `${first} here — seeking a referral for ${effectiveRole}. Strong fit through ${skills}; I'd value an intro.`.slice(
+          0,
+          200,
+        ),
       );
+    } finally {
       setIsDrafting(false);
-    }, 1200);
+    }
   };
 
   const handleSend = async () => {
     setSending(true);
-    await onSend(referrer, selectedReq, pitch);
+    await onSend(referrer, effectiveRole, pitch);
     setSending(false);
     onClose();
   };
 
-  const modal = (
+  return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -582,29 +634,39 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
 
         <div className="mb-4">
           <label className="text-xs text-[#6B6966] block mb-1.5">
-            Target Role
+            Target role
           </label>
-          <div className="relative">
-            <select
-              value={selectedReq}
-              onChange={(e) => setSelectedReq(e.target.value)}
-              className="w-full bg-white/3 border border-white/8 text-sm text-[#E8E6E1] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 appearance-none transition-colors"
-            >
-              {referrer.activeReqs?.map((req) => (
-                <option
-                  key={req}
-                  value={req}
-                  className="bg-[#0F0F0E] text-[#E8E6E1]"
-                >
-                  {req}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={14}
-              className="absolute right-3 top-3 text-[#6B6966] pointer-events-none"
+          {roleOptions.length > 0 ? (
+            <div className="relative">
+              <select
+                value={selectedReq}
+                onChange={(e) => setSelectedReq(e.target.value)}
+                className="w-full bg-white/3 border border-white/8 text-sm text-[#E8E6E1] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 appearance-none transition-colors"
+              >
+                {roleOptions.map((req) => (
+                  <option
+                    key={req}
+                    value={req}
+                    className="bg-[#0F0F0E] text-[#E8E6E1]"
+                  >
+                    {req}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                className="absolute right-3 top-3 text-[#6B6966] pointer-events-none"
+              />
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={customRole}
+              onChange={(e) => setCustomRole(e.target.value)}
+              placeholder="e.g. Senior Backend Engineer"
+              className="w-full bg-white/3 border border-white/8 text-sm text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40"
             />
-          </div>
+          )}
         </div>
 
         <div className="mb-5">
@@ -620,22 +682,18 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleAiDraft();
+                  handleAIDraft();
                 }}
-                disabled={!effectiveRole || draftLoading}
+                disabled={!effectiveRole || isDrafting}
                 className="flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-sm border border-[#C8FF00]/25 text-[#C8FF00] hover:bg-[#C8FF00]/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                <Sparkles
-                  size={10}
-                  className={isDrafting ? "animate-pulse" : ""}
-                />
+                {isDrafting ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <Sparkles size={10} />
+                )}
                 {isDrafting ? "Drafting..." : "AI Draft"}
               </button>
-              <span
-                className={`text-[10px] ${pitch.length > 180 ? "text-amber-400" : "text-[#3D3B38]"}`}
-              >
-                {pitch.length}/200
-              </span>
             </div>
           </div>
           <textarea

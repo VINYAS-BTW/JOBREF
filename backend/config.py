@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from dotenv import load_dotenv
 import firebase_admin
@@ -34,17 +35,44 @@ def _expand_cors_origins(env_value: str) -> list[str]:
     """
     Browsers send different Origin values for the same dev server (localhost vs 127.0.0.1).
     If only one is listed, add the other so OPTIONS preflight does not fail with 400/disabled CORS.
+
+    Vite tries the next port when 5173 is busy (5174, 5175, …); without those origins here the
+    browser shows \"Failed to fetch\" because CORS blocks the response.
     """
     raw = (env_value or "").strip()
     if not raw:
-        return ["http://localhost:5173", "http://127.0.0.1:5173"]
-    seen: set[str] = set()
-    out: list[str] = []
-    for o in (x.strip() for x in raw.split(",") if x.strip()):
-        for candidate in (o, _origin_localhost_mirror(o)):
-            if candidate and candidate not in seen:
-                seen.add(candidate)
-                out.append(candidate)
+        base = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    else:
+        seen: set[str] = set()
+        base = []
+        for o in (x.strip() for x in raw.split(",") if x.strip()):
+            for candidate in (o, _origin_localhost_mirror(o)):
+                if candidate and candidate not in seen:
+                    seen.add(candidate)
+                    base.append(candidate)
+    return _expand_localhost_vite_ports(base)
+
+
+def _expand_localhost_vite_ports(origins: list[str]) -> list[str]:
+    """Add http(s)://localhost:{5173..5180} and 127.0.0.1 equivalents for any listed dev origin."""
+    pat = re.compile(r"^(https?://)(localhost|127\.0\.0\.1):(\d+)/?$")
+    seen = set(origins)
+    out = list(origins)
+    hosts_done: set[tuple[str, str]] = set()
+    for o in origins:
+        m = pat.match(o.rstrip("/"))
+        if not m:
+            continue
+        scheme, host = m.group(1), m.group(2)
+        key = (scheme, host)
+        if key in hosts_done:
+            continue
+        hosts_done.add(key)
+        for port in range(5173, 5181):
+            url = f"{scheme}{host}:{port}"
+            if url not in seen:
+                seen.add(url)
+                out.append(url)
     return out
 
 
