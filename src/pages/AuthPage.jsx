@@ -87,10 +87,10 @@ export default function AuthPage({ mode, navigate }) {
       className="min-h-screen flex"
     >
       {/* LEFT PANEL */}
-      <div className="hidden lg:flex flex-col justify-between w-105 shrink-0 border-r border-white/6 bg-white/1">
+      <div className="hidden lg:flex flex-col ml-3 justify-between w-105 shrink-0 border-r border-white/20 bg-white/1">
         <button
           onClick={() => navigate('landing')}
-          className="flex items-center gap-2 text-sm text-[#6B6966] mt-3 hover:text-[#A09E9A] transition-colors"
+          className="flex items-center gap-2 text-sm text-[#6B6966] mt-3 hover:text-[#A09E9A] transition-colors cursor-pointer"
         >
           <ArrowLeft size={18} />
         </button>
@@ -101,9 +101,9 @@ export default function AuthPage({ mode, navigate }) {
             className="text-2xl font-bold leading-snug text-[#E8E6E1] mb-4"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            "The best hires come from trusted networks. We built the infrastructure <br></br>for that trust."
+            "The best hires come from trusted networks...<br></br> We <span className='text-[#C8FF00]'>built</span> the infrastructure <br></br>for that <span className='text-rose-400'>trust</span>."
           </blockquote>
-          <p className="text-sm text-[#6B6966]">— RefHire founding principle</p>
+          <p className="text-sm ml-5 text-[#999]">— RefHire founding principle</p>
         </div>
 
         <div className="space-y-3 mb-2">
@@ -137,7 +137,7 @@ export default function AuthPage({ mode, navigate }) {
           </button>
 
           {/* Role toggle */}
-          <div className="flex border border-white/8 rounded-sm mb-8 p-0.5 gap-0.5">
+          <div className="flex font-info border border-white/8 rounded-sm mb-8 p-0.5 gap-0.5">
             {[
               { id: 'candidate', label: 'Job seeker' },
               { id: 'employee', label: 'Referrer' },
@@ -147,10 +147,10 @@ export default function AuthPage({ mode, navigate }) {
                 key={id}
                 type="button"
                 onClick={() => { setRole(id); setError('') }}
-                className={`flex-1 py-2 text-[11px] font-medium transition-all duration-200 rounded-sm ${
+                className={`flex-1 py-2 text-[13px] font-medium cursor-pointer transition-all duration-200 rounded-sm ${
                   role === id
                     ? 'bg-[#C8FF00] text-[#0A0A0B]'
-                    : 'text-[#6B6966] hover:text-[#A09E9A]'
+                    : 'text-[#777] hover:text-[#A09E9A]'
                 }`}
               >
                 {label}
@@ -164,7 +164,7 @@ export default function AuthPage({ mode, navigate }) {
               <button
                 key={t}
                 onClick={() => { setTab(t); setError('') }}
-                className={`text-sm font-medium ml-20 transition-colors duration-200 ${
+                className={`text-sm font-medium ml-20 transition-colors cursor-pointer duration-200 ${
                   tab === t
                     ? 'text-[#E8E6E1] border-b-2 border-[#C8FF00]'
                     : 'text-[#6B6966] hover:text-[#A09E9A]'
@@ -211,7 +211,7 @@ export default function AuthPage({ mode, navigate }) {
                     value={form.stack}
                     onChange={handleChange}
                     rows={2}
-                    className="w-full bg-white/3 border border-white/8 text-sm text-[#E8E6E1] placeholder-[#3D3B38] px-4 py-3 rounded-sm focus:outline-none focus:border-[#C8FF00]/50 transition-colors resize-none"
+                    className="w-full bg-white/3 border border-white/8 text-sm text-[#E8E6E1] placeholder-[#3D3B38] px-4 py-3 rounded-sm focus:outline-none focus:border-[#C8FF00]/50 transition-colors resize-none "
                   />
                 </div>
               </>
@@ -234,7 +234,7 @@ export default function AuthPage({ mode, navigate }) {
 
             <div className="flex items-center gap-3 my-4">
               <div className="flex-1 h-px bg-white/6" />
-              <span className="text-xs text-[#3D3B38]">or continue with</span>
+              <span className="text-xs text-[#666]">or continue with</span>
               <div className="flex-1 h-px bg-white/6" />
             </div>
 
@@ -242,7 +242,7 @@ export default function AuthPage({ mode, navigate }) {
               type="button"
               onClick={handleGithub}
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 border border-white/8 text-[#A09E9A] hover:text-[#E8E6E1] hover:border-white/20 py-3 rounded-sm text-sm transition-colors duration-200 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 border border-white/8 text-[#A09E9A] hover:text-[#E8E6E1] hover:border-white/20 py-3 rounded-sm text-sm transition-colors duration-200 disabled:opacity-50 cursor-pointer"
             >
               <GitBranch size={14} />
               GitHub
