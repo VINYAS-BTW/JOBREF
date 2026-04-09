@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS, PORT
-from routers import recommendations, simulator, interview, resume
+from routers import recommendations, simulator, interview, resume, dashboard
 
 app = FastAPI(title="JOBREF AI Engine", version="1.0.0")
 
@@ -17,6 +17,7 @@ app.include_router(recommendations.router, prefix="/recommendations", tags=["Rec
 app.include_router(simulator.router, tags=["Referral Simulator"])
 app.include_router(interview.router, prefix="/shadow-interview", tags=["Shadow Interview"])
 app.include_router(resume.router, prefix="/resume", tags=["Resume Parser"])
+app.include_router(dashboard.router)
 
 
 @app.get("/health")

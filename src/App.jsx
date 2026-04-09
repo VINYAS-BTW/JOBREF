@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage'
 import AuthPage from './pages/AuthPage'
 import CandidateDashboard from './pages/CandidateDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
+import HiringDashboard from './pages/HiringDashboard'
 import { signOut } from './firebase/auth'
 
 export default function App() {
@@ -14,7 +15,9 @@ export default function App() {
 
   useEffect(() => {
     if (!loading && user && role) {
-      setView(role === 'candidate' ? 'candidate' : 'employee')
+      if (role === 'candidate') setView('candidate')
+      else if (role === 'hiring') setView('hiring')
+      else setView('employee')
     }
     if (!loading && !user) {
       setView('landing')
@@ -49,6 +52,7 @@ export default function App() {
         {view === 'auth'      && <AuthPage key="auth" mode={authMode} navigate={navigate} />}
         {view === 'candidate' && <CandidateDashboard key="candidate" navigate={navigate} />}
         {view === 'employee'  && <EmployeeDashboard key="employee" navigate={navigate} />}
+        {view === 'hiring'    && <HiringDashboard key="hiring" navigate={navigate} />}
       </AnimatePresence>
     </div>
   )

@@ -49,6 +49,14 @@ export default function LandingPage({ navigate }) {
           <span className="text-sm font-semibold tracking-widest uppercase text-[#C8FF00]">RefHire</span>
           <div className="flex items-center gap-3">
             <button
+              type="button"
+              onClick={() => navigate('auth', 'hiring')}
+              className="text-sm text-[#6B6966] hover:text-[#A09E9A] transition-colors duration-200 px-3 py-1.5"
+            >
+              Hiring
+            </button>
+            <button
+              type="button"
               onClick={() => navigate('auth', 'candidate')}
               className="text-sm text-[#A09E9A] hover:text-[#E8E6E1] transition-colors duration-200 px-3 py-1.5"
             >

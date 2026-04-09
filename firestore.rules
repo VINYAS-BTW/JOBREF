@@ -3,6 +3,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isHiring() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'hiring';
+    }
+
     // Users collection
     match /users/{userId} {
       allow read: if request.auth != null;
@@ -17,11 +23,15 @@ service cloud.firestore {
       allow update: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Employee profiles — readable by all authenticated users, writable by owner
+    // Employee profiles — owner or hiring committee (karma)
     match /employeeProfiles/{uid} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == uid;
-      allow update: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && (
+        request.auth.uid == uid ||
+        isHiring()
+      );
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
     // Referral requests — get is strict (participant only), list allows any
@@ -39,11 +49,17 @@ service cloud.firestore {
       );
     }
 
-    // Pipeline — readable by the employee who created it
+    // Pipeline — readable by the employee who created it or hiring
     match /pipeline/{pipelineId} {
-      allow read: if request.auth != null && resource.data.employeeId == request.auth.uid;
+      allow read: if request.auth != null && (
+        resource.data.employeeId == request.auth.uid ||
+        isHiring()
+      );
       allow create: if request.auth != null;
-      allow update: if request.auth != null && resource.data.employeeId == request.auth.uid;
+      allow update: if request.auth != null && (
+        resource.data.employeeId == request.auth.uid ||
+        isHiring()
+      );
     }
 
     // Activity feed — readable by the user it belongs to
@@ -68,19 +84,23 @@ service cloud.firestore {
       );
     }
 
+    // Hiring committee ATS
+    match /referrals/{referralId} {
+      allow read, write: if isHiring();
+    }
+
+    match /jobs/{jobId} {
+      allow read: if request.auth != null;
+      allow write: if isHiring();
+    }
+
+    match /dashboard_stats/{docId} {
+      allow read, write: if isHiring();
+    }
+
     // Seeding metadata
     match /_meta/{docId} {
       allow read, write: if request.auth != null;
-    }
-
-    // Demo data (seeded employees/candidates with demo- prefix)
-    match /employeeProfiles/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && uid.matches('demo-.*');
-    }
-    match /candidateProfiles/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && uid.matches('demo-.*');
     }
   }
 }
