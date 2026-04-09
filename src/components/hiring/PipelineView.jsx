@@ -9,9 +9,11 @@ export default function PipelineView({ grouped, renderCard }) {
             <span className="text-[10px] uppercase tracking-widest text-[#6B6966]">{status}</span>
             <span className="text-[10px] text-[#3D3B38] tabular-nums">{(grouped[status] || []).length}</span>
           </div>
-          <div className="p-2 space-y-2">
+          <div className="p-2 space-y-2 max-h-[min(520px,65vh)] overflow-y-auto overflow-x-hidden overscroll-contain">
             {(grouped[status] || []).map((item) => (
-              <div key={item.id}>{renderCard(item)}</div>
+              <div key={`${item.source}-${item.id}`} className="min-w-0">
+                {renderCard(item)}
+              </div>
             ))}
           </div>
         </div>

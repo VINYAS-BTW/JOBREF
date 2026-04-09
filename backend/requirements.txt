@@ -1,6 +1,8 @@
-fastapi
-uvicorn[standard]
-firebase-admin
-pymupdf
-python-multipart
-python-dotenv
+# Python >= 3.10. Pin major versions for reproducible deploys; upgrade ranges intentionally.
+fastapi>=0.115.0,<1
+uvicorn[standard]>=0.32.0,<1
+firebase-admin>=6.5.0,<7
+pymupdf>=1.24.0,<2
+python-multipart>=0.0.12,<1
+python-dotenv>=1.0.0,<2
+google-generativeai>=0.8.0,<1

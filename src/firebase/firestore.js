@@ -30,11 +30,6 @@ export function subscribeEmployeeProfile(uid, callback) {
   })
 }
 
-async function getEmployeeProfile(uid) {
-  const snap = await getDoc(doc(db, 'employeeProfiles', uid))
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null
-}
-
 export function updateEmployeeProfile(uid, data) {
   return updateDoc(doc(db, 'employeeProfiles', uid), data)
 }

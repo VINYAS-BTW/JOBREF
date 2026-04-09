@@ -141,6 +141,39 @@ class InterviewResultOut(BaseModel):
     perQuestion: list[PerQuestionScore] = []
 
 
+# ── Skill Gap Navigator ───────────────────────────────────────────────────────
+
+class SkillGapsRequest(BaseModel):
+    candidateId: str
+
+
+class SkillGapItemOut(BaseModel):
+    role: str
+    company_tier: str = "General"
+    missing: list[str] = []
+    your_match: int = 0
+    potential: int = 0
+    rationale: str = ""
+
+
+class SkillGapsOut(BaseModel):
+    gaps: list[SkillGapItemOut]
+    source: str = "heuristic"
+
+
+# ── Referral request pitch (Gemini + fallback) ──────────────────────────────
+
+class ReferralDraftRequest(BaseModel):
+    candidateId: str = Field(..., min_length=1)
+    employeeId: str = Field(..., min_length=1)
+    targetRole: str = Field(..., min_length=1)
+
+
+class ReferralDraftOut(BaseModel):
+    draft: str
+    source: str = "default"  # "gemini" | "default"
+
+
 # ── Resume Parser ────────────────────────────────────────────────────────────
 
 class ResumeParseOut(BaseModel):

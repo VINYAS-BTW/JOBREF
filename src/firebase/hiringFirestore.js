@@ -10,12 +10,15 @@ import {
   orderBy,
   query,
   runTransaction,
+  getDoc,
+  updateDoc,
   serverTimestamp,
   increment,
   where,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
+import { fetchAPI } from '../services/api'
 
 export const REFERRAL_STATUSES = ['requested', 'approved', 'interview', 'hired', 'rejected']
 export const PIPELINE_STATUSES = ['referred', 'interviewing', 'offer_extended', 'hired', 'declined']
@@ -27,21 +30,53 @@ export function subscribeReferrals(callback) {
     (snap) => {
       callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     },
-    () => callback([])
+    (err) => {
+      console.error('[hiring] referrals listener error:', err?.code, err?.message)
+      callback([])
+    }
   )
 }
 
+function _docTimeSeconds(data, ...keys) {
+  for (const k of keys) {
+    const v = data[k]
+    if (v == null) continue
+    if (typeof v === 'object' && typeof v.seconds === 'number') return v.seconds
+    if (typeof v?.toMillis === 'function') return Math.floor(v.toMillis() / 1000)
+  }
+  return 0
+}
+
+/**
+ * Full collection listen + client sort — avoids orderBy failures when `createdAt`
+ * is missing on some docs or single-field index issues in dev.
+ */
 export function subscribePipeline(callback) {
-  const q = query(collection(db, 'pipeline'), orderBy('createdAt', 'desc'))
   return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-    () => callback([])
+    collection(db, 'pipeline'),
+    (snap) => {
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      rows.sort(
+        (a, b) =>
+          _docTimeSeconds(b, 'createdAt', 'updatedAt') - _docTimeSeconds(a, 'createdAt', 'updatedAt')
+      )
+      callback(rows)
+    },
+    (err) => {
+      console.error('[hiring] pipeline listener error:', err?.code, err?.message)
+      callback([])
+    }
   )
 }
 
+/**
+ * Maps native `pipeline` document status → hiring funnel column.
+ * Unknown/missing values must NOT become `requested` — that column is for the
+ * `referrals` collection only and makes ATS cards look like they “snap back”.
+ */
 export function pipelineToReferralStatus(pipelineStatus) {
-  switch (pipelineStatus) {
+  const s = pipelineStatus === undefined || pipelineStatus === null ? '' : String(pipelineStatus)
+  switch (s) {
     case 'referred':
       return 'approved'
     case 'interviewing':
@@ -51,9 +86,18 @@ export function pipelineToReferralStatus(pipelineStatus) {
       return 'hired'
     case 'declined':
       return 'rejected'
+    case '':
+      return 'approved'
     default:
-      return 'requested'
+      if (PIPELINE_STATUSES.includes(s)) return 'approved'
+      console.warn('[hiring] unknown pipeline status, treating as referred:', pipelineStatus)
+      return 'approved'
   }
+}
+
+/** Stable key for UI busy state when the same id can exist in pipeline vs referrals. */
+export function hiringRowBusyKey(source, id) {
+  return `${source === 'pipeline' ? 'pipeline' : 'referrals'}:${id}`
 }
 
 export function referralToPipelineStatus(refStatus) {
@@ -66,8 +110,43 @@ export function referralToPipelineStatus(refStatus) {
       return 'declined'
     case 'approved':
       return 'referred'
+    case 'requested':
+      return 'referred'
     default:
       return 'referred'
+  }
+}
+
+/**
+ * When the same candidate exists in `pipeline` (employee-forwarded) and `referrals`
+ * (hiring-created), show one row — pipeline drives ATS stage so updates don’t look duplicated.
+ */
+export function mergePipelineAndReferralRows(pipelineRows, referralRows) {
+  const inPipeline = new Set(
+    pipelineRows.map((r) => r.candidateId).filter((id) => id != null && id !== '')
+  )
+  const refs = referralRows.filter((r) => {
+    if (r.candidateId == null || r.candidateId === '') return true
+    return !inPipeline.has(r.candidateId)
+  })
+  return [...pipelineRows, ...refs]
+}
+
+/** Aligns with employee `PipelineTab` / `STAGES` ordering. */
+export function pipelineStageForNativeStatus(nativeStatus) {
+  switch (nativeStatus) {
+    case 'referred':
+      return 1
+    case 'interviewing':
+      return 2
+    case 'offer_extended':
+      return 3
+    case 'hired':
+      return 4
+    case 'declined':
+      return 1
+    default:
+      return 1
   }
 }
 
@@ -227,42 +306,74 @@ export async function updateReferralStatus(referralId, newStatus) {
   })
 }
 
+async function updatePipelineStatusFirestore(pipelineId, newReferralStatus) {
+  const pipeRef = doc(db, 'pipeline', pipelineId)
+  const snap = await getDoc(pipeRef)
+  if (!snap.exists()) throw new Error('Pipeline item not found')
+
+  const data = snap.data()
+  const prevPipeline = data.status
+  const prevReferral = pipelineToReferralStatus(prevPipeline)
+  const nextPipeline = referralToPipelineStatus(newReferralStatus)
+  const nextStage = pipelineStageForNativeStatus(nextPipeline)
+
+  await updateDoc(pipeRef, {
+    status: nextPipeline,
+    stage: nextStage,
+    updatedAt: serverTimestamp(),
+  })
+
+  let karmaDelta = 0
+  if (newReferralStatus === 'interview' && prevReferral !== 'interview' && prevReferral !== 'hired') {
+    karmaDelta += 10
+  }
+  if (newReferralStatus === 'hired' && prevReferral !== 'hired') {
+    karmaDelta += 25
+  }
+
+  const employeeId = data.employeeId
+  if (!employeeId) return
+
+  const empRef = doc(db, 'employeeProfiles', employeeId)
+  const empSnap = await getDoc(empRef)
+  if (!empSnap.exists()) return
+
+  const patch = {}
+  if (karmaDelta > 0) patch.karmaScore = increment(karmaDelta)
+  if (newReferralStatus === 'hired' && prevReferral !== 'hired') patch.successfulReferrals = increment(1)
+  if (Object.keys(patch).length > 0) {
+    await updateDoc(empRef, patch)
+  }
+}
+
+/**
+ * Updates native `pipeline` docs. Tries the client write first; on permission-denied,
+ * falls back to the FastAPI Admin SDK route (bypasses Firestore security rules).
+ */
 export async function updatePipelineStatus(pipelineId, newReferralStatus) {
   if (!REFERRAL_STATUSES.includes(newReferralStatus)) throw new Error('Invalid status')
-
-  const pipeRef = doc(db, 'pipeline', pipelineId)
-  await runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(pipeRef)
-    if (!snap.exists()) throw new Error('Pipeline item not found')
-    const data = snap.data()
-    const prevPipeline = data.status
-    const prevReferral = pipelineToReferralStatus(prevPipeline)
-    const nextPipeline = referralToPipelineStatus(newReferralStatus)
-
-    transaction.update(pipeRef, {
-      status: nextPipeline,
-      updatedAt: serverTimestamp(),
+  try {
+    await updatePipelineStatusFirestore(pipelineId, newReferralStatus)
+  } catch (e) {
+    if (e?.code !== 'permission-denied') throw e
+    await fetchAPI('/dashboard/pipeline/update-status', {
+      pipeline_id: pipelineId,
+      new_status: newReferralStatus,
     })
+  }
+}
 
-    let karmaDelta = 0
-    if (newReferralStatus === 'interview' && prevReferral !== 'interview' && prevReferral !== 'hired') {
-      karmaDelta += 10
-    }
-    if (newReferralStatus === 'hired' && prevReferral !== 'hired') {
-      karmaDelta += 25
-    }
+export async function deletePipelineEntry(pipelineId) {
+  try {
+    await deleteDoc(doc(db, 'pipeline', pipelineId))
+  } catch (e) {
+    if (e?.code !== 'permission-denied') throw e
+    await fetchAPI('/dashboard/pipeline/delete', { pipeline_id: pipelineId })
+  }
+}
 
-    const employeeId = data.employeeId
-    if (!employeeId) return
-    const empRef = doc(db, 'employeeProfiles', employeeId)
-    const empSnap = await transaction.get(empRef)
-    if (!empSnap.exists()) return
-
-    const patch = {}
-    if (karmaDelta > 0) patch.karmaScore = increment(karmaDelta)
-    if (newReferralStatus === 'hired' && prevReferral !== 'hired') patch.successfulReferrals = increment(1)
-    if (Object.keys(patch).length > 0) transaction.update(empRef, patch)
-  })
+export async function deleteReferralEntry(referralId) {
+  await deleteDoc(doc(db, 'referrals', referralId))
 }
 
 export function safeDiv(num, den) {

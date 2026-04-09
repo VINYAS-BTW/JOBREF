@@ -13,6 +13,7 @@ from services.firestore_service import (
     get_shadow_interview,
 )
 from engines.shadow_interview import generate_questions, evaluate_interview
+from services.gemini_features import try_evaluate_shadow_interview, try_generate_shadow_questions
 
 router = APIRouter()
 
@@ -26,7 +27,9 @@ async def generate(
     skills = (profile or {}).get("skills", [])
     yoe = (profile or {}).get("yearsExperience", 2)
 
-    result = generate_questions(skills, body.targetRole, yoe)
+    result = try_generate_shadow_questions(skills, body.targetRole, yoe) or generate_questions(
+        skills, body.targetRole, yoe
+    )
     questions = result["questions"]
 
     interview_id = create_shadow_interview({
@@ -43,7 +46,7 @@ async def generate(
 
 
 def _evaluate_in_background(interview_id: str, questions: list[dict], answers: list[str]):
-    scores = evaluate_interview(questions, answers)
+    scores = try_evaluate_shadow_interview(questions, answers) or evaluate_interview(questions, answers)
     save_shadow_evaluation(interview_id, scores)
 
 
