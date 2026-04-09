@@ -74,7 +74,7 @@ export default function LandingPage({ navigate }) {
           animate="show"
           custom={1}
           className="text-5xl md:text-7xl font-bold leading-[1.05] tracking-tight text-[#E8E6E1] max-w-4xl mb-6"
-          style={{ fontFamily: "'DM Serif Display', serif" }}
+          style={{ fontFamily: 'var(--font-heading)' }}
         >
           The referral network that{' '}
           <span className="text-[#C8FF00]">eliminates</span>{' '}
@@ -125,7 +125,7 @@ export default function LandingPage({ navigate }) {
             >
               <div
                 className="text-4xl font-bold text-[#C8FF00] mb-1 tracking-tight"
-                style={{ fontFamily: "'DM Serif Display', serif" }}
+                style={{ fontFamily: 'var(--font-heading)' }}
               >
                 {s.value}
               </div>
@@ -147,7 +147,7 @@ export default function LandingPage({ navigate }) {
           <p className="text-xs tracking-widest uppercase text-[#C8FF00] mb-3">How it works</p>
           <h2
             className="text-3xl md:text-4xl font-bold text-[#E8E6E1] max-w-lg leading-snug"
-            style={{ fontFamily: "'DM Serif Display', serif" }}
+            style={{ fontFamily: 'var(--font-heading)' }}
           >
             Four systems. One unfair advantage.
           </h2>
@@ -186,7 +186,7 @@ export default function LandingPage({ navigate }) {
           <div>
             <h2
               className="text-3xl font-bold text-[#E8E6E1] mb-2"
-              style={{ fontFamily: "'DM Serif Display', serif" }}
+              style={{ fontFamily: 'var(--font-heading)' }}
             >
               Your next hire is already inside someone's network.
             </h2>

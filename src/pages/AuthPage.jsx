@@ -114,7 +114,7 @@ export default function AuthPage({ mode, navigate }) {
           <p className="text-xs tracking-widest uppercase text-[#C8FF00] mb-6">RefHire</p>
           <blockquote
             className="text-2xl font-bold leading-snug text-[#E8E6E1] mb-4"
-            style={{ fontFamily: "'DM Serif Display', serif" }}
+            style={{ fontFamily: 'var(--font-heading)' }}
           >
             "The best hires come from trusted networks. We built the infrastructure <br></br>for that trust."
           </blockquote>

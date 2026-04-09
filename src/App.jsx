@@ -33,7 +33,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+      <div className="min-h-screen bg-[#111315] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-6 h-6 border-2 border-[#C8FF00] border-t-transparent rounded-full animate-spin" />
           <span className="text-xs text-[#6B6966] tracking-widest uppercase">Loading</span>
@@ -43,7 +43,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-[#E8E6E1]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="min-h-screen bg-[#111315] text-[#E8E6E1]" style={{ fontFamily: 'var(--font-info)' }}>
       <AnimatePresence mode="wait">
         {view === 'landing'   && <LandingPage key="landing" navigate={navigate} />}
         {view === 'auth'      && <AuthPage key="auth" mode={authMode} navigate={navigate} />}
