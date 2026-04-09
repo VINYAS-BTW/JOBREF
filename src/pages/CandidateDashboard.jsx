@@ -1,16 +1,44 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard, Search, Bell, LogOut, GitBranch, Code2,
-  Zap, Lock, X, Send, Coins,
-  CheckCircle, Clock, XCircle, Star, User,
-  BrainCircuit, Target, BookOpen, Sparkles, ArrowUpRight,
-  Eye, RefreshCw, MessageSquare, AlertCircle, TriangleAlert, ChevronDown,
-  FileUp, Loader2, FileText, ChevronUp, Mic, ArrowRight, ChevronLeft,
-  Shield
-} from 'lucide-react'
-import { fetchAPI, uploadResume } from '../services/api'
-import { useAuth } from '../contexts/AuthContext'
+  LayoutDashboard,
+  Search,
+  Bell,
+  LogOut,
+  GitBranch,
+  Code2,
+  Zap,
+  Lock,
+  X,
+  Send,
+  Coins,
+  CheckCircle,
+  Clock,
+  XCircle,
+  Star,
+  User,
+  BrainCircuit,
+  Target,
+  BookOpen,
+  Sparkles,
+  ArrowUpRight,
+  Eye,
+  RefreshCw,
+  MessageSquare,
+  AlertCircle,
+  TriangleAlert,
+  ChevronDown,
+  FileUp,
+  Loader2,
+  FileText,
+  ChevronUp,
+  Mic,
+  ArrowRight,
+  ChevronLeft,
+  Shield,
+} from "lucide-react";
+import { fetchAPI, uploadResume } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 import {
   subscribeCandidateProfile,
   subscribeAllEmployees,
@@ -27,148 +55,170 @@ import { timeAgo } from "../firebase/utils";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LANGUAGES = [
-  { lang: 'TypeScript', pct: 48, commits: 299 },
-  { lang: 'JavaScript', pct: 22, commits: 137 },
-  { lang: 'Python', pct: 16, commits: 100 },
-  { lang: 'SQL', pct: 8, commits: 50 },
-  { lang: 'Go', pct: 6, commits: 38 },
-]
+  { lang: "TypeScript", pct: 48, commits: 299 },
+  { lang: "JavaScript", pct: 22, commits: 137 },
+  { lang: "Python", pct: 16, commits: 100 },
+  { lang: "SQL", pct: 8, commits: 50 },
+  { lang: "Go", pct: 6, commits: 38 },
+];
 
 const HEATMAP = Array.from({ length: 52 * 7 }, (_, i) => {
-  const day = i % 7
-  const weekend = day === 0 || day === 6
-  const active = weekend ? Math.random() > 0.72 : Math.random() > 0.42
+  const day = i % 7;
+  const weekend = day === 0 || day === 6;
+  const active = weekend ? Math.random() > 0.72 : Math.random() > 0.42;
   const intensity = active
-    ? (weekend ? Math.floor(Math.random() * 3) : Math.min(3, 1 + Math.floor(Math.random() * 4)))
-    : 0
-  return { active, intensity }
-})
+    ? weekend
+      ? Math.floor(Math.random() * 3)
+      : Math.min(3, 1 + Math.floor(Math.random() * 4))
+    : 0;
+  return { active, intensity };
+});
 
 const DEFAULT_CANDIDATE_PROFILE = {
-  name: 'User',
-  email: '',
-  currentRole: 'Software Engineer',
+  name: "User",
+  email: "",
+  currentRole: "Software Engineer",
   yearsExperience: 3,
-  location: 'Bengaluru',
-  lookingFor: 'Software Engineer roles',
-  bio: 'Software engineer focused on building reliable product features with clean frontend architecture and practical backend systems.',
+  location: "Bengaluru",
+  lookingFor: "Software Engineer roles",
+  bio: "Software engineer focused on building reliable product features with clean frontend architecture and practical backend systems.",
   githubConnected: true,
   leetcodeConnected: true,
   tokens: 3,
   skills: [
-    'Data Structures',
-    'Algorithms',
-    'Problem Solving',
-    'System Design',
-    'JavaScript',
-    'TypeScript',
-    'React',
-    'Next.js',
-    'Redux Toolkit',
-    'Tailwind CSS',
-    'Node.js',
-    'Express.js',
-    'REST APIs',
-    'PostgreSQL',
-    'MongoDB',
-    'Python',
-    'Machine Learning Fundamentals',
-    'Git',
-    'Docker',
-    'Firebase',
-    'CI/CD',
-    'Jest',
+    "Data Structures",
+    "Algorithms",
+    "Problem Solving",
+    "System Design",
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Next.js",
+    "Redux Toolkit",
+    "Tailwind CSS",
+    "Node.js",
+    "Express.js",
+    "REST APIs",
+    "PostgreSQL",
+    "MongoDB",
+    "Python",
+    "Machine Learning Fundamentals",
+    "Git",
+    "Docker",
+    "Firebase",
+    "CI/CD",
+    "Jest",
   ],
-}
+};
 
 const SKILL_ALIAS_MAP = {
-  dsa: 'Data Structures',
-  'data structures & algorithms': 'Data Structures',
-  'data structures and algorithms': 'Data Structures',
-  algorithms: 'Algorithms',
-  'problem solving': 'Problem Solving',
-  'problem-solving': 'Problem Solving',
-  reactjs: 'React',
-  'next js': 'Next.js',
-  nextjs: 'Next.js',
-  node: 'Node.js',
-  nodejs: 'Node.js',
-  express: 'Express.js',
-  ts: 'TypeScript',
-  js: 'JavaScript',
-  postgres: 'PostgreSQL',
-  postgresql: 'PostgreSQL',
-  mongodb: 'MongoDB',
-  docker: 'Docker',
-  firebase: 'Firebase',
-  git: 'Git',
-  'rest api': 'REST APIs',
-  'rest apis': 'REST APIs',
-  cicd: 'CI/CD',
-  'ci/cd': 'CI/CD',
-  ml: 'Machine Learning Fundamentals',
-  'machine learning': 'Machine Learning Fundamentals',
-}
+  dsa: "Data Structures",
+  "data structures & algorithms": "Data Structures",
+  "data structures and algorithms": "Data Structures",
+  algorithms: "Algorithms",
+  "problem solving": "Problem Solving",
+  "problem-solving": "Problem Solving",
+  reactjs: "React",
+  "next js": "Next.js",
+  nextjs: "Next.js",
+  node: "Node.js",
+  nodejs: "Node.js",
+  express: "Express.js",
+  ts: "TypeScript",
+  js: "JavaScript",
+  postgres: "PostgreSQL",
+  postgresql: "PostgreSQL",
+  mongodb: "MongoDB",
+  docker: "Docker",
+  firebase: "Firebase",
+  git: "Git",
+  "rest api": "REST APIs",
+  "rest apis": "REST APIs",
+  cicd: "CI/CD",
+  "ci/cd": "CI/CD",
+  ml: "Machine Learning Fundamentals",
+  "machine learning": "Machine Learning Fundamentals",
+};
 
 const canonicalRole = (role) => {
-  if (!role) return ''
-  const lower = role.toLowerCase()
-  if (lower.includes('frontend') && lower.includes('senior')) return 'Senior Frontend Engineer'
-  if (lower.includes('frontend')) return 'Frontend Engineer'
-  if ((lower.includes('full stack') || lower.includes('fullstack')) && lower.includes('senior')) return 'Senior Full-Stack Engineer'
-  if (lower.includes('full stack') || lower.includes('fullstack')) return 'Full-Stack Engineer'
-  if (lower.includes('software engineer') && lower.includes('senior')) return 'Senior Software Engineer'
-  if (lower.includes('software engineer')) return 'Software Engineer'
+  if (!role) return "";
+  const lower = role.toLowerCase();
+  if (lower.includes("frontend") && lower.includes("senior"))
+    return "Senior Frontend Engineer";
+  if (lower.includes("frontend")) return "Frontend Engineer";
+  if (
+    (lower.includes("full stack") || lower.includes("fullstack")) &&
+    lower.includes("senior")
+  )
+    return "Senior Full-Stack Engineer";
+  if (lower.includes("full stack") || lower.includes("fullstack"))
+    return "Full-Stack Engineer";
+  if (lower.includes("software engineer") && lower.includes("senior"))
+    return "Senior Software Engineer";
+  if (lower.includes("software engineer")) return "Software Engineer";
   return role
-    .split(' ')
-    .map(part => part ? part[0].toUpperCase() + part.slice(1).toLowerCase() : part)
-    .join(' ')
-}
+    .split(" ")
+    .map((part) =>
+      part ? part[0].toUpperCase() + part.slice(1).toLowerCase() : part,
+    )
+    .join(" ");
+};
 
-const titleCaseWords = (text = '') => text
-  .trim()
-  .split(/\s+/)
-  .map(w => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
-  .join(' ')
+const titleCaseWords = (text = "") =>
+  text
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+    .join(" ");
 
 const normalizeSkillList = (skills = []) => {
-  const out = []
-  const seen = new Set()
+  const out = [];
+  const seen = new Set();
   for (const raw of skills) {
-    if (!raw) continue
-    const key = String(raw).trim().toLowerCase().replace(/\s+/g, ' ')
-    if (!key) continue
-    const normalized = SKILL_ALIAS_MAP[key] || titleCaseWords(key)
-    const dedupeKey = normalized.toLowerCase()
-    if (seen.has(dedupeKey)) continue
-    seen.add(dedupeKey)
-    out.push(normalized)
+    if (!raw) continue;
+    const key = String(raw).trim().toLowerCase().replace(/\s+/g, " ");
+    if (!key) continue;
+    const normalized = SKILL_ALIAS_MAP[key] || titleCaseWords(key);
+    const dedupeKey = normalized.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    out.push(normalized);
   }
-  return out
-}
+  return out;
+};
 
 const normalizeParsedResume = (parsed) => {
-  if (!parsed || typeof parsed !== 'object') return parsed
+  if (!parsed || typeof parsed !== "object") return parsed;
   return {
     ...parsed,
     name: parsed.name ? titleCaseWords(parsed.name) : parsed.name,
-    currentRole: parsed.currentRole ? canonicalRole(parsed.currentRole) : parsed.currentRole,
-    location: parsed.location ? titleCaseWords(parsed.location) : parsed.location,
-    lookingFor: parsed.lookingFor ? canonicalRole(parsed.lookingFor) : parsed.lookingFor,
-    bio: parsed.bio ? parsed.bio.trim().replace(/\s+/g, ' ') : parsed.bio,
+    currentRole: parsed.currentRole
+      ? canonicalRole(parsed.currentRole)
+      : parsed.currentRole,
+    location: parsed.location
+      ? titleCaseWords(parsed.location)
+      : parsed.location,
+    lookingFor: parsed.lookingFor
+      ? canonicalRole(parsed.lookingFor)
+      : parsed.lookingFor,
+    bio: parsed.bio ? parsed.bio.trim().replace(/\s+/g, " ") : parsed.bio,
     skills: normalizeSkillList(parsed.skills || []),
-  }
-}
+  };
+};
 
-const hasText = (value) => typeof value === 'string' && value.trim().length > 0
+const hasText = (value) => typeof value === "string" && value.trim().length > 0;
 
-const pickText = (value, fallback) => hasText(value) ? value.trim() : fallback
+const pickText = (value, fallback) =>
+  hasText(value) ? value.trim() : fallback;
 
 const getEnhancedProfile = (profile) => {
-  const source = profile || {}
-  const sourceSkills = normalizeSkillList(source.skills || [])
-  const sourceBio = hasText(source.bio) ? source.bio.trim().replace(/\s+/g, ' ') : ''
-  const effectiveBio = sourceBio.length >= 80 ? sourceBio : DEFAULT_CANDIDATE_PROFILE.bio
+  const source = profile || {};
+  const sourceSkills = normalizeSkillList(source.skills || []);
+  const sourceBio = hasText(source.bio)
+    ? source.bio.trim().replace(/\s+/g, " ")
+    : "";
+  const effectiveBio =
+    sourceBio.length >= 80 ? sourceBio : DEFAULT_CANDIDATE_PROFILE.bio;
 
   return {
     ...DEFAULT_CANDIDATE_PROFILE,
@@ -182,38 +232,88 @@ const getEnhancedProfile = (profile) => {
     totalRequests: source.totalRequests,
     name: pickText(source.name, DEFAULT_CANDIDATE_PROFILE.name),
     email: pickText(source.email, DEFAULT_CANDIDATE_PROFILE.email),
-    currentRole: canonicalRole(pickText(source.currentRole, DEFAULT_CANDIDATE_PROFILE.currentRole)),
-    yearsExperience: source.yearsExperience || DEFAULT_CANDIDATE_PROFILE.yearsExperience,
-    location: titleCaseWords(pickText(source.location, DEFAULT_CANDIDATE_PROFILE.location)),
-    lookingFor: pickText(source.lookingFor, DEFAULT_CANDIDATE_PROFILE.lookingFor),
+    currentRole: canonicalRole(
+      pickText(source.currentRole, DEFAULT_CANDIDATE_PROFILE.currentRole),
+    ),
+    yearsExperience:
+      source.yearsExperience || DEFAULT_CANDIDATE_PROFILE.yearsExperience,
+    location: titleCaseWords(
+      pickText(source.location, DEFAULT_CANDIDATE_PROFILE.location),
+    ),
+    lookingFor: pickText(
+      source.lookingFor,
+      DEFAULT_CANDIDATE_PROFILE.lookingFor,
+    ),
     bio: effectiveBio,
-    skills: sourceSkills.length >= 8 ? sourceSkills : normalizeSkillList(DEFAULT_CANDIDATE_PROFILE.skills),
+    skills:
+      sourceSkills.length >= 8
+        ? sourceSkills
+        : normalizeSkillList(DEFAULT_CANDIDATE_PROFILE.skills),
     githubConnected: source.githubConnected !== false,
     leetcodeConnected: source.leetcodeConnected !== false,
-  }
-}
+  };
+};
 
 const SKILL_GAPS = [
-  { role: 'Senior Frontend Eng', company_tier: 'Unicorn', missing: ['GraphQL', 'Kubernetes'], your_match: 74, potential: 91 },
-  { role: 'Staff SWE', company_tier: 'FAANG+', missing: ['System Design', 'Distributed Systems'], your_match: 55, potential: 82 },
-]
+  {
+    role: "Senior Frontend Eng",
+    company_tier: "Unicorn",
+    missing: ["GraphQL", "Kubernetes"],
+    your_match: 74,
+    potential: 91,
+  },
+  {
+    role: "Staff SWE",
+    company_tier: "FAANG+",
+    missing: ["System Design", "Distributed Systems"],
+    your_match: 55,
+    potential: 82,
+  },
+];
 
 const WARM_INTROS_DEFAULT = [
-  { id: 1, generated: true, preview: 'Hi — I noticed your team uses React and Node.js extensively. My recent work on a high-traffic fintech dashboard (TypeScript, 400+ commits this year) maps closely to what your stack requires. Would love to explore if there is a fit.' },
+  {
+    id: 1,
+    generated: true,
+    preview:
+      "Hi — I noticed your team uses React and Node.js extensively. My recent work on a high-traffic fintech dashboard (TypeScript, 400+ commits this year) maps closely to what your stack requires. Would love to explore if there is a fit.",
+  },
   { id: 2, generated: false, preview: null },
   { id: 3, generated: false, preview: null },
 ];
 
 const statusConfig = {
-  accepted: { icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20', label: 'Accepted' },
-  pending:  { icon: Clock,       color: 'text-amber-400',   bg: 'bg-amber-400/10',   border: 'border-amber-400/20',   label: 'Pending' },
-  declined: { icon: XCircle,     color: 'text-red-400',     bg: 'bg-red-400/10',     border: 'border-red-400/20',     label: 'Declined' },
-}
+  accepted: {
+    icon: CheckCircle,
+    color: "text-emerald-400",
+    bg: "bg-emerald-400/10",
+    border: "border-emerald-400/20",
+    label: "Accepted",
+  },
+  pending: {
+    icon: Clock,
+    color: "text-amber-400",
+    bg: "bg-amber-400/10",
+    border: "border-amber-400/20",
+    label: "Pending",
+  },
+  declined: {
+    icon: XCircle,
+    color: "text-red-400",
+    bg: "bg-red-400/10",
+    border: "border-red-400/20",
+    label: "Declined",
+  },
+};
 
 const getIntensity = (i, active) => {
-  if (!active) return 'bg-white/[0.04]'
-  return ['bg-[#C8FF00]/20', 'bg-[#C8FF00]/40', 'bg-[#C8FF00]/65', 'bg-[#C8FF00]'][i] || 'bg-[#C8FF00]/20'
-}
+  if (!active) return "bg-white/[0.04]";
+  return (
+    ["bg-[#C8FF00]/20", "bg-[#C8FF00]/40", "bg-[#C8FF00]/65", "bg-[#C8FF00]"][
+      i
+    ] || "bg-[#C8FF00]/20"
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOTION
@@ -272,11 +372,23 @@ function buildNavGroups(interviewBadge) {
 // SIDEBAR
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Sidebar({ active, setActive, navigate, tokens, profile, interviewBadge }) {
-  const NAV_GROUPS = buildNavGroups(interviewBadge)
-  const displayName  = profile?.name || 'User'
-  const displayEmail = profile?.email || ''
-  const initials     = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+function Sidebar({
+  active,
+  setActive,
+  navigate,
+  tokens,
+  profile,
+  interviewBadge,
+}) {
+  const NAV_GROUPS = buildNavGroups(interviewBadge);
+  const displayName = profile?.name || "User";
+  const displayEmail = profile?.email || "";
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-white/18">
@@ -293,7 +405,9 @@ function Sidebar({ active, setActive, navigate, tokens, profile, interviewBadge 
             </span>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-[#E8E6E1] truncate">{displayName}</p>
+            <p className="text-xs font-medium text-[#E8E6E1] truncate">
+              {displayName}
+            </p>
             <p className="text-[12px] text-[#999] truncate">{displayEmail}</p>
           </div>
         </div>
@@ -400,38 +514,49 @@ function SH({ title, sub, action, onAction }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function RequestModal({ referrer, tokens, onClose, onSend }) {
-  const [pitch, setPitch] = useState('')
-  const [selectedReq, setSelectedReq] = useState(referrer.activeReqs?.[0] || '')
-  const [isDrafting, setIsDrafting] = useState(false)
-  const [sending, setSending] = useState(false)
+  const [pitch, setPitch] = useState("");
+  const [selectedReq, setSelectedReq] = useState(
+    referrer.activeReqs?.[0] || "",
+  );
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const handleAIDraft = () => {
-    setIsDrafting(true)
+    setIsDrafting(true);
     setTimeout(() => {
-      setPitch(`My recent work with scalable architectures perfectly matches the ${selectedReq} requirements. With my strong background in ${referrer.stack[0]} and ${referrer.stack[1]}, I can contribute immediately to your team. I would greatly appreciate a referral.`)
-      setIsDrafting(false)
-    }, 1200)
-  }
+      setPitch(
+        `My recent work with scalable architectures perfectly matches the ${selectedReq} requirements. With my strong background in ${referrer.stack[0]} and ${referrer.stack[1]}, I can contribute immediately to your team. I would greatly appreciate a referral.`,
+      );
+      setIsDrafting(false);
+    }, 1200);
+  };
 
   const handleSend = async () => {
-    setSending(true)
-    await onSend(referrer, selectedReq, pitch)
-    setSending(false)
-    onClose()
-  }
+    setSending(true);
+    await onSend(referrer, selectedReq, pitch);
+    setSending(false);
+    onClose();
+  };
 
   const modal = (
     <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      style={{ background: 'rgba(0,0,0,0.82)' }}
+      style={{ background: "rgba(0,0,0,0.82)" }}
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.97, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } }}
+        animate={{
+          opacity: 1,
+          scale: 1,
+          y: 0,
+          transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+        }}
         exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.15 } }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md bg-[#0F0F0E] border border-white/10 rounded-sm p-6"
       >
         <div className="flex items-start justify-between mb-5">
@@ -456,18 +581,29 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
         </div>
 
         <div className="mb-4">
-          <label className="text-xs text-[#6B6966] block mb-1.5">Target Role</label>
+          <label className="text-xs text-[#6B6966] block mb-1.5">
+            Target Role
+          </label>
           <div className="relative">
             <select
               value={selectedReq}
-              onChange={e => setSelectedReq(e.target.value)}
+              onChange={(e) => setSelectedReq(e.target.value)}
               className="w-full bg-white/3 border border-white/8 text-sm text-[#E8E6E1] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 appearance-none transition-colors"
             >
-              {referrer.activeReqs?.map(req => (
-                <option key={req} value={req} className="bg-[#0F0F0E] text-[#E8E6E1]">{req}</option>
+              {referrer.activeReqs?.map((req) => (
+                <option
+                  key={req}
+                  value={req}
+                  className="bg-[#0F0F0E] text-[#E8E6E1]"
+                >
+                  {req}
+                </option>
               ))}
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-3 text-[#6B6966] pointer-events-none" />
+            <ChevronDown
+              size={14}
+              className="absolute right-3 top-3 text-[#6B6966] pointer-events-none"
+            />
           </div>
         </div>
 
@@ -475,20 +611,31 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
           <div className="flex items-center justify-between gap-2 mb-2">
             <label className="text-xs text-[#6B6966]">Your pitch</label>
             <div className="flex items-center gap-2 shrink-0">
-              <span className={`text-[10px] ${pitch.length > 180 ? 'text-amber-400' : 'text-[#3D3B38]'}`}>{pitch.length}/200</span>
+              <span
+                className={`text-[10px] ${pitch.length > 180 ? "text-amber-400" : "text-[#3D3B38]"}`}
+              >
+                {pitch.length}/200
+              </span>
               <button
                 type="button"
                 onClick={(e) => {
-                  e.stopPropagation()
-                  handleAiDraft()
+                  e.stopPropagation();
+                  handleAiDraft();
                 }}
                 disabled={!effectiveRole || draftLoading}
                 className="flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-sm border border-[#C8FF00]/25 text-[#C8FF00] hover:bg-[#C8FF00]/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                <Sparkles size={10} className={isDrafting ? "animate-pulse" : ""} />
-                {isDrafting ? 'Drafting...' : 'AI Draft'}
+                <Sparkles
+                  size={10}
+                  className={isDrafting ? "animate-pulse" : ""}
+                />
+                {isDrafting ? "Drafting..." : "AI Draft"}
               </button>
-              <span className={`text-[10px] ${pitch.length > 180 ? 'text-amber-400' : 'text-[#3D3B38]'}`}>{pitch.length}/200</span>
+              <span
+                className={`text-[10px] ${pitch.length > 180 ? "text-amber-400" : "text-[#3D3B38]"}`}
+              >
+                {pitch.length}/200
+              </span>
             </div>
           </div>
           <textarea
@@ -509,7 +656,9 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
           </button>
           <button
             onClick={handleSend}
-            disabled={!pitch.trim() || tokens === 0 || sending || !effectiveRole}
+            disabled={
+              !pitch.trim() || tokens === 0 || sending || !effectiveRole
+            }
             className="flex-1 flex items-center justify-center gap-2 bg-[#C8FF00] text-[#0A0A0B] font-semibold py-2.5 text-sm rounded-sm hover:bg-[#D4FF26] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {sending ? (
@@ -523,17 +672,25 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
         </div>
       </motion.div>
     </motion.div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE: OVERVIEW
 // ─────────────────────────────────────────────────────────────────────────────
 
-function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onRequest, profile }) {
-  const top3 = [...referrers].sort((a, b) => b.match - a.match).slice(0, 3)
-  const pendingCount  = requests.filter(r => r.status === 'pending').length
-  const acceptedCount = requests.filter(r => r.status === 'accepted').length
+function OverviewPage({
+  setActiveTab,
+  tokens,
+  referrers,
+  requests,
+  activity,
+  onRequest,
+  profile,
+}) {
+  const top3 = [...referrers].sort((a, b) => b.match - a.match).slice(0, 3);
+  const pendingCount = requests.filter((r) => r.status === "pending").length;
+  const acceptedCount = requests.filter((r) => r.status === "accepted").length;
 
   const activityIcons = {
     view: Eye,
@@ -556,8 +713,11 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
       className="space-y-6"
     >
       <motion.div variants={row}>
-        <h1 className="text-2xl font-bold text-[#E8E6E1] leading-tight" style={{ fontFamily: 'var(--font-heading)' }}>
-          Good morning, {profile?.name?.split(' ')[0] || 'there'}.
+        <h1
+          className="text-2xl font-bold text-[#E8E6E1] leading-tight"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          Good morning, {profile?.name?.split(" ")[0] || "there"}.
         </h1>
         <p className="text-sm text-[#6B6966] mt-1">
           Your proof-of-work profile is live.{" "}
@@ -728,8 +888,12 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
                     <IconComp size={11} className={colorCls} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12px] text-[#A09E9A] leading-snug">{a.text}</p>
-                    <p className="text-[10px] text-[#3D3B38] mt-0.5">{timeAgo(a.createdAt)}</p>
+                    <p className="text-[12px] text-[#A09E9A] leading-snug">
+                      {a.text}
+                    </p>
+                    <p className="text-[10px] text-[#3D3B38] mt-0.5">
+                      {timeAgo(a.createdAt)}
+                    </p>
                   </div>
                 </div>
               );
@@ -757,7 +921,10 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
                 Active and recent requests
               </p>
             </div>
-            <button onClick={() => setActiveTab('requests')} className="flex items-center gap-1 text-[11px] text-[#6B6966] hover:text-[#C8FF00] transition-colors">
+            <button
+              onClick={() => setActiveTab("requests")}
+              className="flex items-center gap-1 text-[11px] text-[#6B6966] hover:text-[#C8FF00] transition-colors"
+            >
               Manage <ArrowUpRight size={10} />
             </button>
           </div>
@@ -784,8 +951,12 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold text-[#C8FF00]">{r.match}%</p>
-                    <p className="text-[10px] text-[#3D3B38]">{timeAgo(r.createdAt)}</p>
+                    <p className="text-sm font-semibold text-[#C8FF00]">
+                      {r.match}%
+                    </p>
+                    <p className="text-[10px] text-[#3D3B38]">
+                      {timeAgo(r.createdAt)}
+                    </p>
                   </div>
                 </div>
               );
@@ -799,10 +970,25 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
         className="grid grid-cols-1 sm:grid-cols-3 gap-3"
       >
         {[
-          { label: 'Complete your profile', sub: 'Add skills and bio', icon: GitBranch, action: 'profile' },
-          { label: 'Run AI match scan', sub: 'Find your best matches', icon: BrainCircuit, action: 'ai-match' },
-          { label: 'Fill skill gaps', sub: `${SKILL_GAPS.length} high-impact gaps found`, icon: Target, action: 'skill-gap' },
-        ].map(q => (
+          {
+            label: "Complete your profile",
+            sub: "Add skills and bio",
+            icon: GitBranch,
+            action: "profile",
+          },
+          {
+            label: "Run AI match scan",
+            sub: "Find your best matches",
+            icon: BrainCircuit,
+            action: "ai-match",
+          },
+          {
+            label: "Fill skill gaps",
+            sub: `${SKILL_GAPS.length} high-impact gaps found`,
+            icon: Target,
+            action: "skill-gap",
+          },
+        ].map((q) => (
           <button
             key={q.label}
             onClick={() => setActiveTab(q.action)}
@@ -836,59 +1022,86 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ProfilePage({ profile, onUpdateProfile }) {
-  const [newSkill, setNewSkill] = useState('')
-  const [parsing, setParsing]   = useState(false)
-  const [parsed, setParsed]     = useState(null)
-  const [parseError, setParseError] = useState('')
-  const [dragOver, setDragOver] = useState(false)
-  const [showPreview, setShowPreview] = useState(true)
-  const [editorOpen, setEditorOpen] = useState(false)
+  const [newSkill, setNewSkill] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [parsed, setParsed] = useState(null);
+  const [parseError, setParseError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [editorForm, setEditorForm] = useState({
-    name: '',
-    email: '',
-    currentRole: '',
-    yearsExperience: '',
-    location: '',
-    lookingFor: '',
-    bio: '',
-    skillsText: '',
-    github: '',
-    linkedin: '',
-    leetcode: '',
-    naukri: '',
+    name: "",
+    email: "",
+    currentRole: "",
+    yearsExperience: "",
+    location: "",
+    lookingFor: "",
+    bio: "",
+    skillsText: "",
+    github: "",
+    linkedin: "",
+    leetcode: "",
+    naukri: "",
     githubConnected: false,
     leetcodeConnected: false,
-  })
-  const [editorError, setEditorError] = useState('')
-  const fileRef = useRef(null)
+  });
+  const [editorError, setEditorError] = useState("");
+  const fileRef = useRef(null);
 
   const completionItems = [
-    { label: 'Email verified', done: !!profile?.email },
-    { label: 'GitHub connected', done: !!profile?.githubConnected },
-    { label: 'LeetCode linked', done: !!profile?.leetcodeConnected },
-    { label: 'Skills tagged', done: (profile?.skills?.length || 0) > 0 },
-    { label: 'Bio added', done: !!profile?.bio },
-  ]
-  const completionCount = completionItems.filter(i => i.done).length
-  const completionPct = Math.round((completionCount / completionItems.length) * 100)
-  const backendReadinessRaw = profile?.readinessMeter ?? profile?.profileCompletion ?? profile?.profileCompleteness
-  const backendPct = Number(backendReadinessRaw)
+    { label: "Email verified", done: !!profile?.email },
+    { label: "GitHub connected", done: !!profile?.githubConnected },
+    { label: "LeetCode linked", done: !!profile?.leetcodeConnected },
+    { label: "Skills tagged", done: (profile?.skills?.length || 0) > 0 },
+    { label: "Bio added", done: !!profile?.bio },
+  ];
+  const completionCount = completionItems.filter((i) => i.done).length;
+  const completionPct = Math.round(
+    (completionCount / completionItems.length) * 100,
+  );
+  const backendReadinessRaw =
+    profile?.readinessMeter ??
+    profile?.profileCompletion ??
+    profile?.profileCompleteness;
+  const backendPct = Number(backendReadinessRaw);
   const pct = Number.isFinite(backendPct)
     ? Math.max(0, Math.min(100, Math.round(backendPct)))
-    : completionPct
-  const allSkills = profile?.skills || []
-  const coreSkills = allSkills.filter(s => {
-    const x = s.toLowerCase()
-    return x.includes('algorithm') || x.includes('data structure') || x.includes('problem') || x.includes('system design')
-  })
-  const frontendSkills = allSkills.filter(s => {
-    const x = s.toLowerCase()
-    return x.includes('react') || x.includes('next') || x.includes('typescript') || x.includes('javascript') || x.includes('tailwind') || x.includes('redux')
-  })
-  const backendSkills = allSkills.filter(s => {
-    const x = s.toLowerCase()
-    return x.includes('node') || x.includes('express') || x.includes('api') || x.includes('postgres') || x.includes('mongo') || x.includes('firebase') || x.includes('docker') || x.includes('python') || x.includes('ci/cd')
-  })
+    : completionPct;
+  const allSkills = profile?.skills || [];
+  const coreSkills = allSkills.filter((s) => {
+    const x = s.toLowerCase();
+    return (
+      x.includes("algorithm") ||
+      x.includes("data structure") ||
+      x.includes("problem") ||
+      x.includes("system design")
+    );
+  });
+  const frontendSkills = allSkills.filter((s) => {
+    const x = s.toLowerCase();
+    return (
+      x.includes("react") ||
+      x.includes("next") ||
+      x.includes("typescript") ||
+      x.includes("javascript") ||
+      x.includes("tailwind") ||
+      x.includes("redux")
+    );
+  });
+  const backendSkills = allSkills.filter((s) => {
+    const x = s.toLowerCase();
+    return (
+      x.includes("node") ||
+      x.includes("express") ||
+      x.includes("api") ||
+      x.includes("postgres") ||
+      x.includes("mongo") ||
+      x.includes("firebase") ||
+      x.includes("docker") ||
+      x.includes("python") ||
+      x.includes("ci/cd")
+    );
+  });
 
   const addSkill = () => {
     if (!newSkill.trim()) return;
@@ -914,8 +1127,8 @@ function ProfilePage({ profile, onUpdateProfile }) {
     setShowPreview(true);
 
     try {
-      const result = await uploadResume(file)
-      setParsed(result)
+      const result = await uploadResume(file);
+      setParsed(result);
     } catch (err) {
       setParseError(err.message || "Failed to parse resume.");
     } finally {
@@ -931,20 +1144,24 @@ function ProfilePage({ profile, onUpdateProfile }) {
   };
 
   const applyParsed = () => {
-    if (!parsed) return
-    const normalizedParsed = normalizeParsedResume(parsed)
-    const update = {}
-    if (normalizedParsed.name)            update.name            = normalizedParsed.name
-    if (normalizedParsed.currentRole)     update.currentRole     = normalizedParsed.currentRole
-    if (normalizedParsed.yearsExperience) update.yearsExperience = normalizedParsed.yearsExperience
-    if (normalizedParsed.location)        update.location        = normalizedParsed.location
-    if (normalizedParsed.lookingFor)      update.lookingFor      = normalizedParsed.lookingFor
-    if (normalizedParsed.bio)             update.bio             = normalizedParsed.bio
-    if (normalizedParsed.skills?.length)  update.skills          = normalizedParsed.skills
+    if (!parsed) return;
+    const normalizedParsed = normalizeParsedResume(parsed);
+    const update = {};
+    if (normalizedParsed.name) update.name = normalizedParsed.name;
+    if (normalizedParsed.currentRole)
+      update.currentRole = normalizedParsed.currentRole;
+    if (normalizedParsed.yearsExperience)
+      update.yearsExperience = normalizedParsed.yearsExperience;
+    if (normalizedParsed.location) update.location = normalizedParsed.location;
+    if (normalizedParsed.lookingFor)
+      update.lookingFor = normalizedParsed.lookingFor;
+    if (normalizedParsed.bio) update.bio = normalizedParsed.bio;
+    if (normalizedParsed.skills?.length)
+      update.skills = normalizedParsed.skills;
 
-    onUpdateProfile(update)
-    setParsed(null)
-  }
+    onUpdateProfile(update);
+    setParsed(null);
+  };
 
   return (
     <motion.div
@@ -954,19 +1171,34 @@ function ProfilePage({ profile, onUpdateProfile }) {
       className="space-y-5 max-w-3xl"
     >
       <motion.div variants={row}>
-        <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>My Profile</h1>
-        <p className="text-sm text-[#6B6966] mt-0.5">Your proof-of-work identity visible to referrers after mutual opt-in.</p>
+        <h1
+          className="text-xl font-bold text-[#E8E6E1]"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          My Profile
+        </h1>
+        <p className="text-sm text-[#6B6966] mt-0.5">
+          Your proof-of-work identity visible to referrers after mutual opt-in.
+        </p>
       </motion.div>
 
       {/* ── Resume Upload Agent ─────────────────────────────────── */}
-      <motion.div variants={row} className="border border-[#C8FF00]/20 bg-[#C8FF00]/[0.03] rounded-sm overflow-hidden">
+      <motion.div
+        variants={row}
+        className="border border-[#C8FF00]/20 bg-[#C8FF00]/[0.03] rounded-sm overflow-hidden"
+      >
         <div className="px-5 py-4 border-b border-[#C8FF00]/10 flex items-center gap-3">
           <div className="w-8 h-8 bg-[#C8FF00]/10 border border-[#C8FF00]/25 rounded-sm flex items-center justify-center shrink-0">
             <Sparkles size={14} className="text-[#C8FF00]" />
           </div>
           <div className="flex-1">
-            <p className="text-[13px] font-semibold text-[#E8E6E1]">Resume Agent</p>
-            <p className="text-[11px] text-[#6B6966]">Upload your resume and we'll auto-fill your entire profile — name, skills, experience, everything.</p>
+            <p className="text-[13px] font-semibold text-[#E8E6E1]">
+              Resume Agent
+            </p>
+            <p className="text-[11px] text-[#6B6966]">
+              Upload your resume and we'll auto-fill your entire profile — name,
+              skills, experience, everything.
+            </p>
           </div>
         </div>
 
@@ -996,16 +1228,20 @@ function ProfilePage({ profile, onUpdateProfile }) {
               </div>
               <div className="text-center">
                 <p className="text-[13px] text-[#E8E6E1] font-medium">
-                  {dragOver ? 'Drop your resume here' : 'Drag & drop your resume PDF'}
+                  {dragOver
+                    ? "Drop your resume here"
+                    : "Drag & drop your resume PDF"}
                 </p>
-                <p className="text-[11px] text-[#3D3B38] mt-0.5">or click to browse · PDF only · max 10 MB</p>
+                <p className="text-[11px] text-[#3D3B38] mt-0.5">
+                  or click to browse · PDF only · max 10 MB
+                </p>
               </div>
               <input
                 ref={fileRef}
                 type="file"
                 accept=".pdf,application/pdf"
                 className="hidden"
-                onChange={e => handleFile(e.target.files?.[0])}
+                onChange={(e) => handleFile(e.target.files?.[0])}
               />
             </div>
           )}
@@ -1024,12 +1260,16 @@ function ProfilePage({ profile, onUpdateProfile }) {
                 </p>
               </div>
               <div className="flex gap-1">
-                {[0, 1, 2, 3, 4].map(i => (
+                {[0, 1, 2, 3, 4].map((i) => (
                   <motion.div
                     key={i}
                     className="w-1.5 h-1.5 rounded-full bg-[#C8FF00]"
                     animate={{ opacity: [0.2, 1, 0.2] }}
-                    transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15 }}
+                    transition={{
+                      duration: 1.2,
+                      repeat: Infinity,
+                      delay: i * 0.15,
+                    }}
                   />
                 ))}
               </div>
@@ -1040,7 +1280,13 @@ function ProfilePage({ profile, onUpdateProfile }) {
             <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-sm px-4 py-3">
               <AlertCircle size={13} className="text-red-400 shrink-0" />
               <span className="text-xs text-red-400 flex-1">{parseError}</span>
-              <button onClick={() => { setParseError(''); setParsed(null) }} className="text-[11px] text-red-400 hover:text-red-300 underline shrink-0">
+              <button
+                onClick={() => {
+                  setParseError("");
+                  setParsed(null);
+                }}
+                className="text-[11px] text-red-400 hover:text-red-300 underline shrink-0"
+              >
                 Try again
               </button>
             </div>
@@ -1070,13 +1316,20 @@ function ProfilePage({ profile, onUpdateProfile }) {
                 </button>
               </div>
               <p className="text-[11px] text-[#6B6966]">
-                Extracted from {parsed.rawLineCount} lines · found sections: {parsed.sectionsFound.length > 0 ? parsed.sectionsFound.join(', ') : 'header only'}
+                Extracted from {parsed.rawLineCount} lines · found sections:{" "}
+                {parsed.sectionsFound.length > 0
+                  ? parsed.sectionsFound.join(", ")
+                  : "header only"}
               </p>
 
               <AnimatePresence>
                 {showPreview && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden space-y-3">
-
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden space-y-3"
+                  >
                     {/* Extracted fields */}
                     <div className="grid grid-cols-2 gap-2">
                       {[
@@ -1142,7 +1395,10 @@ function ProfilePage({ profile, onUpdateProfile }) {
 
               <div className="flex gap-2 pt-1">
                 <button
-                  onClick={() => { setParsed(null); setParseError('') }}
+                  onClick={() => {
+                    setParsed(null);
+                    setParseError("");
+                  }}
                   className="flex-1 border border-white/8 text-[#6B6966] hover:text-[#A09E9A] py-2.5 text-[12px] rounded-sm transition-colors"
                 >
                   Discard
@@ -1161,54 +1417,93 @@ function ProfilePage({ profile, onUpdateProfile }) {
       </motion.div>
 
       {/* ── Profile Completeness ─────────────────────────────── */}
-      <motion.div variants={row} className="border border-white/6 rounded-sm p-5">
+      <motion.div
+        variants={row}
+        className="border border-white/6 rounded-sm p-5"
+      >
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[13px] font-semibold text-[#E8E6E1]">Profile completeness</p>
+          <p className="text-[13px] font-semibold text-[#E8E6E1]">
+            Profile completeness
+          </p>
           <span className="text-sm font-bold text-[#C8FF00]">{pct}%</span>
         </div>
         <div className="h-1 bg-white/6 rounded-full overflow-hidden mb-4">
           <motion.div
-            initial={{ width: 0 }} animate={{ width: `${pct}%` }}
-            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.25 }}
+            initial={{ width: 0 }}
+            animate={{ width: `${pct}%` }}
+            transition={{
+              duration: 0.9,
+              ease: [0.22, 1, 0.36, 1],
+              delay: 0.25,
+            }}
             className="h-full bg-[#C8FF00] rounded-full"
           />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {completionItems.map(item => (
-            <div key={item.label} className={`flex items-center gap-2 text-[12px] ${item.done ? 'text-[#A09E9A]' : 'text-[#3D3B38]'}`}>
-              {item.done
-                ? <CheckCircle size={11} className="text-emerald-400 shrink-0" />
-                : <AlertCircle size={11} className="text-[#3D3B38] shrink-0" />}
+          {completionItems.map((item) => (
+            <div
+              key={item.label}
+              className={`flex items-center gap-2 text-[12px] ${item.done ? "text-[#A09E9A]" : "text-[#3D3B38]"}`}
+            >
+              {item.done ? (
+                <CheckCircle size={11} className="text-emerald-400 shrink-0" />
+              ) : (
+                <AlertCircle size={11} className="text-[#3D3B38] shrink-0" />
+              )}
               {item.label}
             </div>
           ))}
         </div>
       </motion.div>
 
-      <motion.div variants={row} className="border border-white/6 rounded-sm p-5">
-        <SH title="Basic information" sub="Shown after mutual referral reveal" />
+      <motion.div
+        variants={row}
+        className="border border-white/6 rounded-sm p-5"
+      >
+        <SH
+          title="Basic information"
+          sub="Shown after mutual referral reveal"
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {[
-            ['Full name', profile?.name || '—'],
-            ['Email', profile?.email || '—'],
-            ['Current role', profile?.currentRole || '—'],
-            ['Years experience', profile?.yearsExperience ? `${profile.yearsExperience} years` : '—'],
-            ['Location', profile?.location || '—'],
-            ['Looking for', profile?.lookingFor || '—'],
+            ["Full name", profile?.name || "—"],
+            ["Email", profile?.email || "—"],
+            ["Current role", profile?.currentRole || "—"],
+            [
+              "Years experience",
+              profile?.yearsExperience
+                ? `${profile.yearsExperience} years`
+                : "—",
+            ],
+            ["Location", profile?.location || "—"],
+            ["Looking for", profile?.lookingFor || "—"],
           ].map(([label, value]) => (
-            <div key={label} className="bg-white/2 border border-white/5 rounded-sm px-3 py-2.5">
-              <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-1">{label}</p>
+            <div
+              key={label}
+              className="bg-white/2 border border-white/5 rounded-sm px-3 py-2.5"
+            >
+              <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-1">
+                {label}
+              </p>
               <p className="text-[13px] text-[#E8E6E1]">{value}</p>
             </div>
           ))}
         </div>
       </motion.div>
 
-      <motion.div variants={row} className="border border-white/6 rounded-sm p-5">
+      <motion.div
+        variants={row}
+        className="border border-white/6 rounded-sm p-5"
+      >
         <SH title="Tech stack" sub="Used for AI matching" />
         <div className="flex flex-wrap gap-2">
-          {(profile?.skills || []).map(s => (
-            <span key={s} className="text-[12px] bg-white/4 border border-white/6 text-[#A09E9A] px-2.5 py-1 rounded-sm">{s}</span>
+          {(profile?.skills || []).map((s) => (
+            <span
+              key={s}
+              className="text-[12px] bg-white/4 border border-white/6 text-[#A09E9A] px-2.5 py-1 rounded-sm"
+            >
+              {s}
+            </span>
           ))}
           <div className="flex items-center gap-1">
             <input
@@ -1227,51 +1522,104 @@ function ProfilePage({ profile, onUpdateProfile }) {
         className="grid grid-cols-1 sm:grid-cols-2 gap-3"
       >
         {[
-          { icon: GitBranch, title: 'Connect GitHub', sub: 'Generates commit heatmap and language breakdown.' },
-          { icon: Code2, title: 'Link LeetCode', sub: 'Adds solve count and contest rating to your profile.' },
-        ].map(({ icon: Icon, title, sub }) => (
-          <div key={title} className="border border-dashed border-white/10 rounded-sm p-5 flex flex-col gap-3">
-            <div className="w-8 h-8 border border-white/8 rounded-sm flex items-center justify-center">
-              <Icon size={14} className="text-[#6B6966]" />
+          {
+            id: "github",
+            icon: GitBranch,
+            title: "Connect GitHub",
+            sub: "Generates commit heatmap and language breakdown.",
+          },
+          {
+            id: "leetcode",
+            icon: Code2,
+            title: "Link LeetCode",
+            sub: "Adds solve count and contest rating to your profile.",
+          },
+        ].map(({ id, icon: Icon, title, sub }) => {
+          const isConnected =
+            id === "github"
+              ? profile?.githubConnected
+              : profile?.leetcodeConnected;
+          return (
+            <div
+              key={title}
+              className="border border-dashed border-white/10 rounded-sm p-5 flex flex-col gap-3"
+            >
+              <div className="w-8 h-8 border border-white/8 rounded-sm flex items-center justify-center">
+                <Icon size={14} className="text-[#6B6966]" />
+              </div>
+              <div>
+                <p className="text-[13px] font-medium text-[#E8E6E1]">
+                  {title}
+                </p>
+                <p className="text-[11px] text-[#6B6966] mt-0.5">{sub}</p>
+              </div>
+              <button className="self-start text-[12px] bg-[#C8FF00]/10 border border-[#C8FF00]/25 text-[#C8FF00] px-3 py-1.5 rounded-sm hover:bg-[#C8FF00] hover:text-[#0A0A0B] transition-colors font-medium">
+                {isConnected ? "Connected" : "Connect"} →
+              </button>
             </div>
-            <div>
-              <p className="text-[13px] font-medium text-[#E8E6E1]">{title}</p>
-              <p className="text-[11px] text-[#6B6966] mt-0.5">{sub}</p>
-            </div>
-            <button className="self-start text-[12px] bg-[#C8FF00]/10 border border-[#C8FF00]/25 text-[#C8FF00] px-3 py-1.5 rounded-sm hover:bg-[#C8FF00] hover:text-[#0A0A0B] transition-colors font-medium">{connected ? 'Connected' : 'Connect'} →</button>
-          </div>
-        ))}
+          );
+        })}
       </motion.div>
 
-      <motion.div variants={row} className="border border-white/6 rounded-sm p-5">
-        <SH title="Engineering Footprint" sub="Contribution graph and language mix" />
-        <div className={profile?.githubConnected ? '' : 'opacity-40 pointer-events-none'}>
+      <motion.div
+        variants={row}
+        className="border border-white/6 rounded-sm p-5"
+      >
+        <SH
+          title="Engineering Footprint"
+          sub="Contribution graph and language mix"
+        />
+        <div
+          className={
+            profile?.githubConnected ? "" : "opacity-40 pointer-events-none"
+          }
+        >
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-[#6B6966]">Last 12 months</span>
-            <span className="text-xs text-[#3D3B38]">Consistency over spikes</span>
+            <span className="text-xs text-[#3D3B38]">
+              Consistency over spikes
+            </span>
           </div>
           <div className="overflow-x-auto">
-            <div className="grid gap-0.75" style={{ gridTemplateColumns: 'repeat(52,1fr)', gridTemplateRows: 'repeat(7,1fr)', width:'100%' }}>
+            <div
+              className="grid gap-0.75"
+              style={{
+                gridTemplateColumns: "repeat(52,1fr)",
+                gridTemplateRows: "repeat(7,1fr)",
+                width: "100%",
+              }}
+            >
               {HEATMAP.map((cell, i) => (
-                <div key={i} className={`w-full aspect-square rounded-xs ${getIntensity(cell.intensity, cell.active)}`} style={{ minWidth:8, minHeight:8 }} />
+                <div
+                  key={i}
+                  className={`w-full aspect-square rounded-xs ${getIntensity(cell.intensity, cell.active)}`}
+                  style={{ minWidth: 8, minHeight: 8 }}
+                />
               ))}
             </div>
           </div>
           <div className="mt-5 space-y-2.5">
-            {LANGUAGES.map(l => (
+            {LANGUAGES.map((l) => (
               <div key={l.lang}>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-[#A09E9A]">{l.lang}</span>
                   <span className="text-[#3D3B38]">{l.commits} commits</span>
                 </div>
                 <div className="h-0.5 bg-white/6 rounded-full">
-                  <div className="h-full bg-[#C8FF00] rounded-full" style={{ width: `${l.pct}%` }} />
+                  <div
+                    className="h-full bg-[#C8FF00] rounded-full"
+                    style={{ width: `${l.pct}%` }}
+                  />
                 </div>
               </div>
             ))}
           </div>
         </div>
-        {!profile?.githubConnected && <p className="text-[11px] text-[#3D3B38] mt-3">Connect GitHub above to unlock this section.</p>}
+        {!profile?.githubConnected && (
+          <p className="text-[11px] text-[#3D3B38] mt-3">
+            Connect GitHub above to unlock this section.
+          </p>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -1624,9 +1972,9 @@ function BreakdownBar({ label, score, weight, delay = 0 }) {
 }
 
 function AIMatchPage({ recommendations, profile, onRequest, tokens }) {
-  const [expanded, setExpanded] = useState(null)
-  const [running, setRunning] = useState(false)
-  const [filter, setFilter] = useState('all')
+  const [expanded, setExpanded] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [filter, setFilter] = useState("all");
 
   const runScan = () => {
     setRunning(true);
@@ -2139,7 +2487,12 @@ function WarmIntroPage({ referrers }) {
       <motion.div variants={row}>
         <div className="flex items-center gap-2 mb-1">
           <MessageSquare size={15} className="text-[#C8FF00]" />
-          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>Warm Intro Generator</h1>
+          <h1
+            className="text-xl font-bold text-[#E8E6E1]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Warm Intro Generator
+          </h1>
         </div>
         <p className="text-sm text-[#6B6966]">
           AI crafts a personalised, role-specific pitch for each referrer based
@@ -2159,9 +2512,13 @@ function WarmIntroPage({ referrers }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <Lock size={9} className="text-[#C8FF00]" />
-                    <span className="text-[10px] text-[#C8FF00]">Anonymous</span>
+                    <span className="text-[10px] text-[#C8FF00]">
+                      Anonymous
+                    </span>
                   </div>
-                  <p className="text-[13px] font-medium text-[#E8E6E1]">{r.alias}</p>
+                  <p className="text-[13px] font-medium text-[#E8E6E1]">
+                    {r.alias}
+                  </p>
                 </div>
                 <span className="text-sm font-bold text-[#C8FF00] shrink-0">
                   {r.match}%
@@ -2219,35 +2576,37 @@ function WarmIntroPage({ referrers }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SkillGapPage({ profile }) {
-  const { user } = useAuth()
-  const [gaps, setGaps] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [err, setErr] = useState('')
-  const [source, setSource] = useState('')
+  const { user } = useAuth();
+  const [gaps, setGaps] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [source, setSource] = useState("");
 
   useEffect(() => {
     if (!user?.uid) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
-    let cancelled = false
-    setLoading(true)
-    setErr('')
-    fetchAPI('/recommendations/skill-gaps', { candidateId: user.uid })
+    let cancelled = false;
+    setLoading(true);
+    setErr("");
+    fetchAPI("/recommendations/skill-gaps", { candidateId: user.uid })
       .then((r) => {
         if (!cancelled) {
-          setGaps(r.gaps || [])
-          setSource(r.source || '')
+          setGaps(r.gaps || []);
+          setSource(r.source || "");
         }
       })
       .catch((e) => {
-        if (!cancelled) setErr(e.message || 'Could not load skill gaps.')
+        if (!cancelled) setErr(e.message || "Could not load skill gaps.");
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [user?.uid])
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
 
   return (
     <motion.div
@@ -2259,36 +2618,59 @@ function SkillGapPage({ profile }) {
       <motion.div variants={row}>
         <div className="flex items-center gap-2 mb-1">
           <Target size={15} className="text-[#C8FF00]" />
-          <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>Skill Gap Navigator</h1>
+          <h1
+            className="text-xl font-bold text-[#E8E6E1]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Skill Gap Navigator
+          </h1>
         </div>
-        <p className="text-sm text-[#6B6966]">See exactly which skills are suppressing your match score — and what to learn to close the gap for each target role.</p>
+        <p className="text-sm text-[#6B6966]">
+          See exactly which skills are suppressing your match score — and what
+          to learn to close the gap for each target role.
+        </p>
       </motion.div>
 
       {loading && (
-        <motion.div variants={row} className="flex items-center gap-3 py-8 text-[#6B6966] text-sm">
+        <motion.div
+          variants={row}
+          className="flex items-center gap-3 py-8 text-[#6B6966] text-sm"
+        >
           <Loader2 size={18} className="animate-spin text-[#C8FF00]" />
           Loading skill gaps…
         </motion.div>
       )}
 
       {err && (
-        <motion.div variants={row} className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-sm px-4 py-3 text-xs text-red-400">
+        <motion.div
+          variants={row}
+          className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-sm px-4 py-3 text-xs text-red-400"
+        >
           <AlertCircle size={14} className="shrink-0" />
           {err}
         </motion.div>
       )}
 
       {!loading && !err && gaps.length === 0 && (
-        <motion.p variants={row} className="text-sm text-[#6B6966]">No gap analysis yet. Update your profile and try again.</motion.p>
+        <motion.p variants={row} className="text-sm text-[#6B6966]">
+          No gap analysis yet. Update your profile and try again.
+        </motion.p>
       )}
 
       <motion.div variants={row} className="space-y-4">
         {SKILL_GAPS.map((g, i) => (
-          <div key={i} className="border border-white/6 rounded-sm overflow-hidden">
+          <div
+            key={i}
+            className="border border-white/6 rounded-sm overflow-hidden"
+          >
             <div className="px-5 py-4 border-b border-white/4 flex items-center justify-between">
               <div>
-                <p className="text-[13px] font-semibold text-[#E8E6E1]">{g.role}</p>
-                <p className="text-[11px] text-[#6B6966] mt-0.5">{g.company_tier} companies</p>
+                <p className="text-[13px] font-semibold text-[#E8E6E1]">
+                  {g.role}
+                </p>
+                <p className="text-[11px] text-[#6B6966] mt-0.5">
+                  {g.company_tier} companies
+                </p>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1.5 justify-end">
@@ -2314,23 +2696,33 @@ function SkillGapPage({ profile }) {
                 Skills to prioritize:
               </p>
               <div className="flex flex-wrap gap-2 mb-4">
-                {g.missing.map(skill => (
-                  <span key={skill} className="text-[12px] bg-amber-400/8 border border-amber-400/20 text-amber-400 px-2.5 py-1 rounded-sm">{skill}</span>
+                {g.missing.map((skill) => (
+                  <span
+                    key={skill}
+                    className="text-[12px] bg-amber-400/8 border border-amber-400/20 text-amber-400 px-2.5 py-1 rounded-sm"
+                  >
+                    {skill}
+                  </span>
                 ))}
               </div>
               <p className="text-[11px] text-[#6B6966] mb-2">
                 Suggested learning path:
               </p>
               <div className="space-y-1.5">
-                {g.missing.map(skill => (
-                  <div key={skill} className="flex items-center justify-between bg-white/2 border border-white/5 rounded-sm px-3 py-2">
+                {g.missing.map((skill) => (
+                  <div
+                    key={skill}
+                    className="flex items-center justify-between bg-white/2 border border-white/5 rounded-sm px-3 py-2"
+                  >
                     <div className="flex items-center gap-2">
                       <BookOpen size={11} className="text-[#3D3B38]" />
                       <span className="text-[12px] text-[#A09E9A]">
                         Learn {skill}
                       </span>
                     </div>
-                    <button className="text-[11px] text-[#C8FF00] hover:underline">View path →</button>
+                    <button className="text-[11px] text-[#C8FF00] hover:underline">
+                      View path →
+                    </button>
                   </div>
                 ))}
               </div>
@@ -2779,11 +3171,13 @@ export default function CandidateDashboard({ navigate }) {
       if (Object.values(loaded).every(Boolean)) setDataReady(true);
     };
 
-    unsubs.push(subscribeCandidateProfile(user.uid, (p) => {
-      setProfile(p)
-      loaded.profile = true
-      checkReady()
-    }))
+    unsubs.push(
+      subscribeCandidateProfile(user.uid, (p) => {
+        setProfile(p);
+        loaded.profile = true;
+        checkReady();
+      }),
+    );
 
     unsubs.push(
       subscribeAllEmployees((emps) => {
@@ -2835,10 +3229,10 @@ export default function CandidateDashboard({ navigate }) {
     };
   }, [user, profile, employees]);
 
-  const enhancedProfile = getEnhancedProfile(profile)
-  const tokens = enhancedProfile?.tokens ?? 3
+  const enhancedProfile = getEnhancedProfile(profile);
+  const tokens = enhancedProfile?.tokens ?? 3;
 
-  const requestedEmployeeIds = new Set(requests.map(r => r.employeeId))
+  const requestedEmployeeIds = new Set(requests.map((r) => r.employeeId));
 
   const referrers = recommendations.map((rec) => ({
     id: rec.id,
@@ -2886,7 +3280,7 @@ export default function CandidateDashboard({ navigate }) {
 
   const handleUpdateProfile = async (data) => {
     try {
-      await updateCandidateProfile(user.uid, data)
+      await updateCandidateProfile(user.uid, data);
     } catch (err) {
       console.error("Failed to update profile:", err);
     }
@@ -2907,21 +3301,66 @@ export default function CandidateDashboard({ navigate }) {
 
   const renderPage = () => {
     switch (activeTab) {
-      case 'overview':    return <OverviewPage setActiveTab={setActiveTab} tokens={tokens} referrers={referrers} requests={enrichedRequests} activity={activity} onRequest={handleRequest} profile={enhancedProfile} />
-      case 'profile':     return <ProfilePage profile={enhancedProfile} onUpdateProfile={handleUpdateProfile} />
-      case 'discover':    return <DiscoverPage referrers={referrers} onRequest={handleRequest} />
-      case 'requests':    return <RequestsPage requests={enrichedRequests} />
-      case 'shadow-interview': return <ShadowInterviewPage interviews={shadowInterviews} onComplete={() => {}} />
-      case 'ai-match':    return <AIMatchPage recommendations={recommendations} profile={enhancedProfile} onRequest={handleRequest} tokens={tokens} />
-      case 'warm-intro':  return <WarmIntroPage referrers={referrers} />
-      case 'skill-gap':   return <SkillGapPage />
-      default:            return null
+      case "overview":
+        return (
+          <OverviewPage
+            setActiveTab={setActiveTab}
+            tokens={tokens}
+            referrers={referrers}
+            requests={enrichedRequests}
+            activity={activity}
+            onRequest={handleRequest}
+            profile={enhancedProfile}
+          />
+        );
+      case "profile":
+        return (
+          <ProfilePage
+            profile={enhancedProfile}
+            onUpdateProfile={handleUpdateProfile}
+          />
+        );
+      case "discover":
+        return <DiscoverPage referrers={referrers} onRequest={handleRequest} />;
+      case "requests":
+        return <RequestsPage requests={enrichedRequests} />;
+      case "shadow-interview":
+        return (
+          <ShadowInterviewPage
+            interviews={shadowInterviews}
+            onComplete={() => {}}
+          />
+        );
+      case "ai-match":
+        return (
+          <AIMatchPage
+            recommendations={recommendations}
+            profile={enhancedProfile}
+            onRequest={handleRequest}
+            tokens={tokens}
+          />
+        );
+      case "warm-intro":
+        return <WarmIntroPage referrers={referrers} />;
+      case "skill-gap":
+        return <SkillGapPage />;
+      default:
+        return null;
     }
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#111]">
-      <Sidebar active={activeTab} setActive={setActiveTab} navigate={navigate} tokens={tokens} profile={enhancedProfile} interviewBadge={shadowInterviews.filter(i => i.status === 'generated').length} />
+      <Sidebar
+        active={activeTab}
+        setActive={setActiveTab}
+        navigate={navigate}
+        tokens={tokens}
+        profile={enhancedProfile}
+        interviewBadge={
+          shadowInterviews.filter((i) => i.status === "generated").length
+        }
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
