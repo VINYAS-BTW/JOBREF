@@ -4,7 +4,6 @@ import { ArrowLeft, GitBranch, Mail, Lock, User, Building2, ChevronRight, AlertC
 import { useAuth } from '../contexts/AuthContext'
 import { auth } from '../firebase/config'
 import { registerWithEmail, loginWithEmail, loginWithGithub, completeGithubProfile, getUserRole } from '../firebase/auth'
-import { seedDemoEmployees, seedDemoDataForCandidate, seedDemoDataForEmployee } from '../firebase/seed'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -40,14 +39,6 @@ export default function AuthPage({ mode, navigate }) {
           { company: form.company, stack: form.stack }
         )
 
-        await seedDemoEmployees()
-
-        if (role === 'candidate') {
-          await seedDemoDataForCandidate(auth.currentUser.uid)
-        } else {
-          await seedDemoDataForEmployee(auth.currentUser.uid)
-        }
-
         setAuthRole(role)
       } else {
         if (!form.email.trim()) throw new Error('Email is required')
@@ -76,12 +67,6 @@ export default function AuthPage({ mode, navigate }) {
       const result = await loginWithGithub()
       if (result.needsRole) {
         await completeGithubProfile(result.user, role)
-        await seedDemoEmployees()
-        if (role === 'candidate') {
-          await seedDemoDataForCandidate(result.user.uid)
-        } else {
-          await seedDemoDataForEmployee(result.user.uid)
-        }
         setAuthRole(role)
       } else {
         setAuthRole(result.role)
@@ -152,18 +137,23 @@ export default function AuthPage({ mode, navigate }) {
           </button>
 
           {/* Role toggle */}
-          <div className="flex border border-white/8 rounded-sm mb-8 p-0.5">
-            {['candidate', 'employee'].map(r => (
+          <div className="flex border border-white/8 rounded-sm mb-8 p-0.5 gap-0.5">
+            {[
+              { id: 'candidate', label: 'Job seeker' },
+              { id: 'employee', label: 'Referrer' },
+              { id: 'hiring', label: 'Hiring' },
+            ].map(({ id, label }) => (
               <button
-                key={r}
-                onClick={() => { setRole(r); setError('') }}
-                className={`flex-1 py-2 text-xs font-medium capitalize transition-all duration-200 rounded-sm ${
-                  role === r
+                key={id}
+                type="button"
+                onClick={() => { setRole(id); setError('') }}
+                className={`flex-1 py-2 text-[11px] font-medium transition-all duration-200 rounded-sm ${
+                  role === id
                     ? 'bg-[#C8FF00] text-[#0A0A0B]'
                     : 'text-[#6B6966] hover:text-[#A09E9A]'
                 }`}
               >
-                {r === 'candidate' ? 'Job Seeker' : 'Referrer'}
+                {label}
               </button>
             ))}
           </div>

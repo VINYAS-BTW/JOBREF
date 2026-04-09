@@ -2,9 +2,9 @@
 @import "tailwindcss";
 
 :root {
-  --font-heading: 'Bricolage Grotesque', sans-serif;
-  --font-maininfo: 'Manrope', sans-serif;
-  --font-info: 'Quicksand', sans-serif;
+  --font-heading: 'Quicksand', sans-serif;
+  --font-maininfo: 'Bricolage Grotesque', sans-serif;
+  --font-info: 'Manrope', sans-serif;
   font-size: 17.5px;
 }
 

@@ -21,6 +21,9 @@ export async function registerWithEmail(email, password, name, role, extra = {})
     name,
     role,
     createdAt: serverTimestamp(),
+    ...(role === 'employee'
+      ? { karmaScore: 0, totalReferrals: 0, successfulReferrals: 0 }
+      : {}),
   })
 
   if (role === 'candidate') {
@@ -40,7 +43,7 @@ export async function registerWithEmail(email, password, name, role, extra = {})
       tokenResetDate:    new Date(Date.now() + 30 * 86400000),
       createdAt:         serverTimestamp(),
     })
-  } else {
+  } else if (role === 'employee') {
     await setDoc(doc(db, 'employeeProfiles', user.uid), {
       uid:            user.uid,
       name,
@@ -57,6 +60,8 @@ export async function registerWithEmail(email, password, name, role, extra = {})
       visibleAs:      extra.company ? `Employee @ ${extra.company}` : 'Anonymous Referrer',
       anonymousSince: serverTimestamp(),
       createdAt:      serverTimestamp(),
+      karmaScore:       0,
+      successfulReferrals: 0,
     })
   }
 
@@ -88,6 +93,9 @@ export async function completeGithubProfile(user, role, extra = {}) {
     name,
     role,
     createdAt: serverTimestamp(),
+    ...(role === 'employee'
+      ? { karmaScore: 0, totalReferrals: 0, successfulReferrals: 0 }
+      : {}),
   })
 
   if (role === 'candidate') {
@@ -107,7 +115,7 @@ export async function completeGithubProfile(user, role, extra = {}) {
       tokenResetDate:    new Date(Date.now() + 30 * 86400000),
       createdAt:         serverTimestamp(),
     })
-  } else {
+  } else if (role === 'employee') {
     await setDoc(doc(db, 'employeeProfiles', user.uid), {
       uid:            user.uid,
       name,
@@ -124,6 +132,8 @@ export async function completeGithubProfile(user, role, extra = {}) {
       visibleAs:      'Anonymous Referrer',
       anonymousSince: serverTimestamp(),
       createdAt:      serverTimestamp(),
+      karmaScore:       0,
+      successfulReferrals: 0,
     })
   }
 }
