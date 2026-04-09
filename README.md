@@ -30,7 +30,7 @@ Full-stack app connecting job seekers, employee referrers, and a hiring committe
 | Database | Cloud Firestore |
 | Auth | Firebase (email/password, GitHub OAuth) |
 | Resume | PyMuPDF + heuristics (no LLM) |
-| Optional AI | Google Gemini (`google-generativeai`): shadow interview, skill gaps, referral pitch draft |
+| Optional AI | Google Gemini (`google-genai` SDK): shadow interview, skill gaps, referral pitch draft |
 | Rules / indexes | `firestore.rules`, `firestore.indexes.json` (deploy to your Firebase project) |
 
 ## Project structure

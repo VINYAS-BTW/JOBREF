@@ -31,22 +31,40 @@ def _strip_fence(text: str) -> str:
     return t.strip()
 
 
-def _generate(prompt: str) -> str | None:
-    key = _api_key()
-    if not key:
+# Lazy singleton — `google.genai` Client (replaces deprecated `google.generativeai`).
+_genai_client = None
+
+
+def _get_genai_client():
+    global _genai_client
+    if _genai_client is not None:
+        return _genai_client
+    if not _api_key():
         return None
     try:
-        import google.generativeai as genai
+        from google import genai
     except ImportError:
-        logger.warning("google-generativeai not installed; Gemini features disabled")
+        logger.warning("google-genai not installed; Gemini features disabled")
+        return None
+    _genai_client = genai.Client(api_key=_api_key())
+    return _genai_client
+
+
+def _generate(prompt: str) -> str | None:
+    client = _get_genai_client()
+    if not client:
+        return None
+    try:
+        from google.genai import types
+    except ImportError:
+        logger.warning("google-genai not installed; Gemini features disabled")
         return None
 
-    genai.configure(api_key=key)
-    model = genai.GenerativeModel(_model_name())
     try:
-        response = model.generate_content(
-            prompt,
-            generation_config={"temperature": 0.35},
+        response = client.models.generate_content(
+            model=_model_name(),
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0.35),
         )
     except Exception as e:
         logger.warning("Gemini request failed: %s", e)
@@ -54,7 +72,7 @@ def _generate(prompt: str) -> str | None:
 
     try:
         return response.text
-    except ValueError:
+    except (ValueError, AttributeError):
         logger.warning("Gemini returned no text")
         return None
 
