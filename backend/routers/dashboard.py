@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from services import firestore_service as fs
+from services.auth import verify_firebase_token
 
 router = APIRouter(prefix="/dashboard", tags=["Hiring Dashboard"])
 
@@ -38,4 +39,55 @@ async def post_update_status(body: ReferralStatusBody):
         raise HTTPException(status_code=404, detail="referral not found") from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
+    return {"ok": True}
+
+
+class PipelineStatusBody(BaseModel):
+    pipeline_id: str = Field(..., min_length=1)
+    new_status: str
+
+
+class PipelineDeleteBody(BaseModel):
+    pipeline_id: str = Field(..., min_length=1)
+
+
+@router.post("/pipeline/update-status")
+async def post_pipeline_update_status(
+    body: PipelineStatusBody,
+    token: dict = Depends(verify_firebase_token),
+):
+    uid = token.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    if not fs.user_has_hiring_role(uid):
+        raise HTTPException(
+            status_code=403,
+            detail="Your Firestore user document must have role 'hiring' for this action",
+        )
+    try:
+        fs.update_pipeline_status(body.pipeline_id, body.new_status)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="pipeline not found") from None
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    return {"ok": True}
+
+
+@router.post("/pipeline/delete")
+async def post_pipeline_delete(
+    body: PipelineDeleteBody,
+    token: dict = Depends(verify_firebase_token),
+):
+    uid = token.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    if not fs.user_has_hiring_role(uid):
+        raise HTTPException(
+            status_code=403,
+            detail="Your Firestore user document must have role 'hiring' for this action",
+        )
+    try:
+        fs.delete_pipeline_document(body.pipeline_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="pipeline not found") from None
     return {"ok": True}

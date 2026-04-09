@@ -2,8 +2,14 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, GitBranch, Mail, Lock, User, Building2, ChevronRight, AlertCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { auth } from '../firebase/config'
-import { registerWithEmail, loginWithEmail, loginWithGithub, completeGithubProfile, getUserRole } from '../firebase/auth'
+import {
+  registerWithEmail,
+  loginWithEmail,
+  loginWithGithub,
+  completeGithubProfile,
+  getUserRole,
+  normalizeUserRole,
+} from '../firebase/auth'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -39,14 +45,16 @@ export default function AuthPage({ mode, navigate }) {
           { company: form.company, stack: form.stack }
         )
 
-        setAuthRole(role)
+        setAuthRole(normalizeUserRole(role) ?? role)
       } else {
         if (!form.email.trim()) throw new Error('Email is required')
         if (!form.password.trim()) throw new Error('Password is required')
 
         const user = await loginWithEmail(form.email, form.password)
         const existingRole = await getUserRole(user.uid)
-        if (existingRole) setAuthRole(existingRole)
+        if (existingRole != null && existingRole !== '') {
+          setAuthRole(normalizeUserRole(existingRole) ?? existingRole)
+        }
       }
     } catch (err) {
       const msg = err.code === 'auth/email-already-in-use' ? 'This email is already registered. Try signing in.'
@@ -56,6 +64,7 @@ export default function AuthPage({ mode, navigate }) {
         : err.code === 'auth/too-many-requests' ? 'Too many attempts. Please wait and try again.'
         : err.message || 'Something went wrong. Please try again.'
       setError(msg)
+    } finally {
       setSubmitting(false)
     }
   }
@@ -67,14 +76,15 @@ export default function AuthPage({ mode, navigate }) {
       const result = await loginWithGithub()
       if (result.needsRole) {
         await completeGithubProfile(result.user, role)
-        setAuthRole(role)
+        setAuthRole(normalizeUserRole(role) ?? role)
       } else {
-        setAuthRole(result.role)
+        setAuthRole(normalizeUserRole(result.role) ?? result.role)
       }
     } catch (err) {
       if (err.code !== 'auth/popup-closed-by-user') {
         setError(err.message || 'GitHub sign-in failed.')
       }
+    } finally {
       setSubmitting(false)
     }
   }

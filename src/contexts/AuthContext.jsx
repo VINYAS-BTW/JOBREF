@@ -1,7 +1,9 @@
+/* eslint-disable react-refresh/only-export-components -- AuthProvider + useAuth are intentionally paired */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from '../firebase/config'
+import { normalizeUserRole } from '../firebase/auth'
 
 const AuthContext = createContext(null)
 
@@ -20,7 +22,7 @@ export function AuthProvider({ children }) {
         setUser(firebaseUser)
         unsubRole = onSnapshot(doc(db, 'users', firebaseUser.uid), (snap) => {
           if (snap.exists()) {
-            setRole(snap.data().role)
+            setRole(normalizeUserRole(snap.data().role) ?? snap.data().role)
           }
           setLoading(false)
         }, () => {

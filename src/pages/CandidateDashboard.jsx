@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Search, Bell, LogOut, GitBranch, Code2,
@@ -7,7 +8,7 @@ import {
   BrainCircuit, Target, BookOpen, Sparkles, ArrowUpRight,
   Eye, RefreshCw, MessageSquare, AlertCircle, TriangleAlert, ChevronDown,
   FileUp, Loader2, FileText, ChevronUp, Mic, ArrowRight, ChevronLeft,
-  Shield
+  Shield,
 } from 'lucide-react'
 import { fetchAPI, uploadResume } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -23,29 +24,11 @@ import {
 import { timeAgo } from '../firebase/utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STATIC / PRESENTATIONAL MOCK DATA (GitHub, LeetCode, Skill Gaps — not yet API-backed)
+// GitHub activity charts require a real GitHub connection + API data (not shown until available).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LANGUAGES = [
-  { lang: 'TypeScript', pct: 82, commits: 412 },
-  { lang: 'Python', pct: 61, commits: 218 },
-  { lang: 'Go', pct: 44, commits: 97 },
-  { lang: 'Rust', pct: 28, commits: 43 },
-  { lang: 'SQL', pct: 19, commits: 31 },
-]
-
-const HEATMAP = Array.from({ length: 52 * 7 }, () => ({
-  active: Math.random() > 0.58,
-  intensity: Math.floor(Math.random() * 4),
-}))
-
-const SKILL_GAPS = [
-  { role: 'Senior Frontend Eng', company_tier: 'Unicorn', missing: ['GraphQL', 'Kubernetes'], your_match: 74, potential: 91 },
-  { role: 'Staff SWE', company_tier: 'FAANG+', missing: ['System Design', 'Distributed Systems'], your_match: 55, potential: 82 },
-]
-
 const WARM_INTROS_DEFAULT = [
-  { id: 1, generated: true, preview: 'Hi — I noticed your team uses React and Node.js extensively. My recent work on a high-traffic fintech dashboard (TypeScript, 400+ commits this year) maps closely to what your stack requires. Would love to explore if there is a fit.' },
+  { id: 1, generated: false, preview: null },
   { id: 2, generated: false, preview: null },
   { id: 3, generated: false, preview: null },
 ]
@@ -54,11 +37,6 @@ const statusConfig = {
   accepted: { icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20', label: 'Accepted' },
   pending:  { icon: Clock,       color: 'text-amber-400',   bg: 'bg-amber-400/10',   border: 'border-amber-400/20',   label: 'Pending' },
   declined: { icon: XCircle,     color: 'text-red-400',     bg: 'bg-red-400/10',     border: 'border-red-400/20',     label: 'Declined' },
-}
-
-const getIntensity = (i, active) => {
-  if (!active) return 'bg-white/[0.04]'
-  return ['bg-[#C8FF00]/20', 'bg-[#C8FF00]/40', 'bg-[#C8FF00]/65', 'bg-[#C8FF00]'][i] || 'bg-[#C8FF00]/20'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -105,11 +83,19 @@ function buildNavGroups(interviewBadge) {
 // SIDEBAR
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Sidebar({ active, setActive, navigate, tokens, profile, interviewBadge }) {
+function Sidebar({ active, setActive, navigate, tokens, profile, user, interviewBadge }) {
   const NAV_GROUPS = buildNavGroups(interviewBadge)
-  const displayName  = profile?.name || 'User'
-  const displayEmail = profile?.email || ''
-  const initials     = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  const displayName = (profile?.name || user?.displayName || '').trim()
+  const displayEmail = (profile?.email || user?.email || '').trim()
+  const initialsSource = displayName || displayEmail || ''
+  const initials = initialsSource
+    ? initialsSource
+        .split(/\s+/)
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2) || initialsSource.slice(0, 2).toUpperCase()
+    : '·'
 
   return (
     <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-white/18">
@@ -122,8 +108,8 @@ function Sidebar({ active, setActive, navigate, tokens, profile, interviewBadge 
             <span className="text-[10px] font-bold text-[#C8FF00]">{initials}</span>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-[#E8E6E1] truncate">{displayName}</p>
-            <p className="text-[12px] text-[#999] truncate">{displayEmail}</p>
+            <p className="text-xs font-medium text-[#E8E6E1] truncate">{displayName || 'Your profile'}</p>
+            <p className="text-[12px] text-[#999] truncate">{displayEmail || '—'}</p>
           </div>
         </div>
       </div>
@@ -215,43 +201,170 @@ function SH({ title, sub, action, onAction }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REQUEST MODAL
+// REQUEST MODAL — role dropdown (referrer activeReqs) + Gemini pitch draft
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RequestModal({ referrer, tokens, onClose, onSend }) {
-  const [pitch, setPitch] = useState('')
-  const [selectedReq, setSelectedReq] = useState(referrer.activeReqs?.[0] || '')
-  const [isDrafting, setIsDrafting] = useState(false)
-  const [sending, setSending] = useState(false)
+function defaultLocalPitch(profile, referrer, targetRole) {
+  const raw = (profile?.name || '').trim()
+  const first = raw.split(/\s+/)[0] || 'I'
+  const sk = Array.isArray(profile?.skills) ? profile.skills : []
+  const skills = sk.slice(0, 4).map(String).filter(Boolean).join(', ') || 'relevant experience'
+  const alias = (referrer.alias || 'you').trim()
+  const role = (targetRole || 'this role').trim()
+  const s =
+    `${first} here — I'm seeking a referral for ${role}. My experience (${skills}) is a strong match; I'd value an introduction through ${alias}.`
+  return s.length > 200 ? `${s.slice(0, 197)}…` : s
+}
 
-  const handleAIDraft = () => {
-    setIsDrafting(true)
-    setTimeout(() => {
-      setPitch(`My recent work with scalable architectures perfectly matches the ${selectedReq} requirements. With my strong background in ${referrer.stack[0]} and ${referrer.stack[1]}, I can contribute immediately to your team. I would greatly appreciate a referral.`)
-      setIsDrafting(false)
-    }, 1200)
+/** Portaled menu so the list is never clipped by the modal or motion transforms. */
+function ActiveReqsDropdown({ options, value, onChange, disabled }) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
+  const menuRef = useRef(null)
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
+
+  const updatePos = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setPos({ top: r.bottom + 6, left: r.left, width: Math.max(r.width, 200) })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    updatePos()
+    const onScroll = () => updatePos()
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [open, updatePos])
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e) => {
+      if (triggerRef.current?.contains(e.target)) return
+      if (menuRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={triggerRef}
+        disabled={disabled}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (disabled) return
+          setOpen((o) => !o)
+        }}
+        className="w-full flex items-center justify-between gap-2 text-left text-sm px-3 py-2.5 rounded-sm border border-white/8 bg-white/[0.03] hover:border-[#C8FF00]/25 disabled:opacity-50 min-h-[42px] transition-colors"
+      >
+        <span className={`flex-1 min-w-0 truncate leading-snug ${value ? 'text-[#E8E6E1]' : 'text-[#3D3B38]'}`}>
+          {value || 'Select a role'}
+        </span>
+        <ChevronDown size={16} className={`shrink-0 text-[#6B6966] transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 400 }}
+            className="rounded-sm border border-white/12 bg-[#141413] shadow-2xl max-h-60 overflow-y-auto py-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {options.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  onChange(opt)
+                  setOpen(false)
+                }}
+                className={`w-full text-left text-sm px-3 py-2.5 transition-colors break-words leading-snug ${
+                  value === opt ? 'bg-[#C8FF00]/12 text-[#C8FF00]' : 'text-[#E8E6E1] hover:bg-white/[0.06]'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
+
+function RequestModal({ referrer, tokens, candidateId, profile, onClose, onSend }) {
+  const roleOptions = referrer.activeReqs?.filter(Boolean) ?? []
+  const [pitch, setPitch] = useState('')
+  const [selectedReq, setSelectedReq] = useState(() => roleOptions[0] || '')
+  const [customRole, setCustomRole] = useState('')
+  const [sending, setSending] = useState(false)
+  const [draftLoading, setDraftLoading] = useState(false)
+
+  const activeReqsKey = (referrer.activeReqs || []).filter(Boolean).join('|')
+  useEffect(() => {
+    const opts = referrer.activeReqs?.filter(Boolean) ?? []
+    setSelectedReq((prev) => (opts.length && opts.includes(prev) ? prev : opts[0] || ''))
+    setCustomRole('')
+    // activeReqsKey encodes referrer.activeReqs (stable dep vs. new array identity each render)
+  }, [referrer.id, activeReqsKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const effectiveRole = roleOptions.length ? selectedReq : customRole.trim()
+
+  const handleAiDraft = async () => {
+    if (!effectiveRole || !candidateId) return
+    setDraftLoading(true)
+    try {
+      const res = await fetchAPI('/recommendations/referral-draft', {
+        candidateId,
+        employeeId: referrer.id,
+        targetRole: effectiveRole,
+      })
+      const text = String(res?.draft || '').trim().slice(0, 200)
+      setPitch(text || defaultLocalPitch(profile, referrer, effectiveRole))
+    } catch {
+      setPitch(defaultLocalPitch(profile, referrer, effectiveRole))
+    } finally {
+      setDraftLoading(false)
+    }
   }
 
   const handleSend = async () => {
     setSending(true)
-    await onSend(referrer, selectedReq, pitch)
+    await onSend(referrer, effectiveRole, pitch)
     setSending(false)
     onClose()
   }
 
-  return (
+  const modal = (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center px-4 py-8 overflow-y-auto"
       style={{ background: 'rgba(0,0,0,0.82)' }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.97, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } }}
-        exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.15 } }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } }}
+        exit={{ opacity: 0, y: 8, transition: { duration: 0.12 } }}
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-md bg-[#0F0F0E] border border-white/10 rounded-sm p-6"
+        className="w-full max-w-md bg-[#0F0F0E] border border-white/10 rounded-sm p-6 my-auto max-h-[min(90vh,720px)] overflow-y-auto shadow-2xl"
       >
         <div className="flex items-start justify-between mb-5">
           <div>
@@ -268,34 +381,52 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
         </div>
 
         <div className="mb-4">
-          <label className="text-xs text-[#6B6966] block mb-1.5">Target Role</label>
-          <div className="relative">
-            <select
+          <label className="text-xs text-[#6B6966] block mb-1.5">Target role</label>
+          <p className="text-[10px] text-[#3D3B38] mb-2">
+            Roles your referrer listed on their profile ({roleOptions.length ? `${roleOptions.length} open` : 'none — enter manually'}).
+          </p>
+          {roleOptions.length > 0 ? (
+            <ActiveReqsDropdown
+              options={roleOptions}
               value={selectedReq}
-              onChange={e => setSelectedReq(e.target.value)}
-              className="w-full bg-white/3 border border-white/8 text-sm text-[#E8E6E1] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40 appearance-none transition-colors"
-            >
-              {referrer.activeReqs?.map(req => (
-                <option key={req} value={req} className="bg-[#0F0F0E] text-[#E8E6E1]">{req}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="absolute right-3 top-3 text-[#6B6966] pointer-events-none" />
-          </div>
+              onChange={setSelectedReq}
+              disabled={false}
+            />
+          ) : (
+            <div>
+              <p className="text-[11px] text-[#6B6966] mb-2">This referrer has not listed specific roles. Enter the role you want a referral for.</p>
+              <input
+                type="text"
+                value={customRole}
+                onChange={(e) => setCustomRole(e.target.value)}
+                placeholder="e.g. Senior Backend Engineer"
+                className="w-full bg-white/3 border border-white/8 text-sm text-[#E8E6E1] placeholder-[#3D3B38] px-3 py-2.5 rounded-sm focus:outline-none focus:border-[#C8FF00]/40"
+              />
+            </div>
+          )}
         </div>
 
         <div className="mb-5">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <label className="text-xs text-[#6B6966]">Your pitch</label>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleAIDraft}
-                disabled={isDrafting}
-                className="flex items-center gap-1.5 text-[10px] bg-[#C8FF00]/10 border border-[#C8FF00]/20 text-[#C8FF00] hover:bg-[#C8FF00]/20 px-2 py-1 rounded-sm transition-colors disabled:opacity-50"
-              >
-                <Sparkles size={10} className={isDrafting ? "animate-pulse" : ""} />
-                {isDrafting ? 'Drafting...' : 'AI Draft'}
-              </button>
+            <div className="flex items-center gap-2 shrink-0">
               <span className={`text-[10px] ${pitch.length > 180 ? 'text-amber-400' : 'text-[#3D3B38]'}`}>{pitch.length}/200</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleAiDraft()
+                }}
+                disabled={!effectiveRole || draftLoading}
+                className="flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-sm border border-[#C8FF00]/25 text-[#C8FF00] hover:bg-[#C8FF00]/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {draftLoading ? (
+                  <Loader2 size={11} className="animate-spin" />
+                ) : (
+                  <Sparkles size={11} />
+                )}
+                AI draft
+              </button>
             </div>
           </div>
           <textarea
@@ -308,7 +439,7 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
           <button onClick={onClose} className="flex-1 border border-white/8 text-[#6B6966] hover:text-[#A09E9A] py-2.5 text-sm rounded-sm transition-colors">Cancel</button>
           <button
             onClick={handleSend}
-            disabled={!pitch.trim() || tokens === 0 || sending}
+            disabled={!pitch.trim() || tokens === 0 || sending || !effectiveRole}
             className="flex-1 flex items-center justify-center gap-2 bg-[#C8FF00] text-[#0A0A0B] font-semibold py-2.5 text-sm rounded-sm hover:bg-[#D4FF26] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {sending ? (
@@ -321,13 +452,24 @@ function RequestModal({ referrer, tokens, onClose, onSend }) {
       </motion.div>
     </motion.div>
   )
+
+  return typeof document !== 'undefined' ? createPortal(modal, document.body) : null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE: OVERVIEW
 // ─────────────────────────────────────────────────────────────────────────────
 
-function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onRequest, profile }) {
+function displayFirstName(profile, user) {
+  const n = (profile?.name || user?.displayName || '').trim()
+  if (n) return n.split(/\s+/)[0]
+  const em = (user?.email || '').trim()
+  if (em) return em.split('@')[0]
+  return null
+}
+
+function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onRequest, profile, user }) {
+  const greetFirst = displayFirstName(profile, user)
   const top3 = [...referrers].sort((a, b) => b.match - a.match).slice(0, 3)
   const pendingCount  = requests.filter(r => r.status === 'pending').length
   const acceptedCount = requests.filter(r => r.status === 'accepted').length
@@ -340,7 +482,7 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
 
       <motion.div variants={row}>
         <h1 className="text-2xl font-bold text-[#E8E6E1] leading-tight" style={{ fontFamily: 'var(--font-heading)' }}>
-          Good morning, {profile?.name?.split(' ')[0] || 'there'}.
+          Good morning{greetFirst ? `, ${greetFirst}` : ''}.
         </h1>
         <p className="text-sm text-[#6B6966] mt-1">
           Your proof-of-work profile is live.{' '}
@@ -489,7 +631,7 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
         {[
           { label: 'Complete your profile', sub: 'Add skills and bio', icon: GitBranch, action: 'profile' },
           { label: 'Run AI match scan', sub: 'Find your best matches', icon: BrainCircuit, action: 'ai-match' },
-          { label: 'Fill skill gaps', sub: `${SKILL_GAPS.length} high-impact gaps found`, icon: Target, action: 'skill-gap' },
+          { label: 'Fill skill gaps', sub: 'Prioritized skills to close role gaps', icon: Target, action: 'skill-gap' },
         ].map(q => (
           <button
             key={q.label}
@@ -515,7 +657,12 @@ function OverviewPage({ setActiveTab, tokens, referrers, requests, activity, onR
 // PAGE: MY PROFILE
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ProfilePage({ profile, onUpdateProfile }) {
+function fmtOrNotSet(v) {
+  const s = v == null ? '' : String(v).trim()
+  return s || 'Not set'
+}
+
+function ProfilePage({ profile, onUpdateProfile, user }) {
   const [newSkill, setNewSkill] = useState('')
   const [parsing, setParsing]   = useState(false)
   const [parsed, setParsed]     = useState(null)
@@ -525,7 +672,7 @@ function ProfilePage({ profile, onUpdateProfile }) {
   const fileRef = useRef(null)
 
   const completionItems = [
-    { label: 'Email verified', done: !!profile?.email },
+    { label: 'Email verified', done: !!(profile?.email?.trim() || user?.email?.trim()) },
     { label: 'GitHub connected', done: !!profile?.githubConnected },
     { label: 'LeetCode linked', done: !!profile?.leetcodeConnected },
     { label: 'Skills tagged', done: (profile?.skills?.length || 0) > 0 },
@@ -578,6 +725,7 @@ function ProfilePage({ profile, onUpdateProfile }) {
     if (!parsed) return
     const update = {}
     if (parsed.name)            update.name            = parsed.name
+    if (parsed.email)           update.email           = parsed.email
     if (parsed.currentRole)     update.currentRole     = parsed.currentRole
     if (parsed.yearsExperience) update.yearsExperience = parsed.yearsExperience
     if (parsed.location)        update.location        = parsed.location
@@ -787,12 +935,17 @@ function ProfilePage({ profile, onUpdateProfile }) {
         <SH title="Basic information" sub="Shown after mutual referral reveal" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {[
-            ['Full name', profile?.name || '—'],
-            ['Email', profile?.email || '—'],
-            ['Current role', profile?.currentRole || '—'],
-            ['Years experience', profile?.yearsExperience ? `${profile.yearsExperience} years` : '—'],
-            ['Location', profile?.location || '—'],
-            ['Looking for', profile?.lookingFor || '—'],
+            ['Full name', fmtOrNotSet(profile?.name)],
+            ['Email', fmtOrNotSet(profile?.email || user?.email)],
+            ['Current role', fmtOrNotSet(profile?.currentRole)],
+            [
+              'Years experience',
+              profile?.yearsExperience != null && Number(profile.yearsExperience) > 0
+                ? `${profile.yearsExperience} years`
+                : 'Not set',
+            ],
+            ['Location', fmtOrNotSet(profile?.location)],
+            ['Looking for', fmtOrNotSet(profile?.lookingFor)],
           ].map(([label, value]) => (
             <div key={label} className="bg-white/2 border border-white/5 rounded-sm px-3 py-2.5">
               <p className="text-[10px] text-[#3D3B38] uppercase tracking-wider mb-1">{label}</p>
@@ -822,7 +975,7 @@ function ProfilePage({ profile, onUpdateProfile }) {
 
       <motion.div variants={row} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {[
-          { icon: GitBranch, title: 'Connect GitHub', sub: 'Generates commit heatmap and language breakdown.' },
+          { icon: GitBranch, title: 'Connect GitHub', sub: 'Link your account to sync real commit activity when available.' },
           { icon: Code2, title: 'Link LeetCode', sub: 'Adds solve count and contest rating to your profile.' },
         ].map(({ icon: Icon, title, sub }) => (
           <div key={title} className="border border-dashed border-white/10 rounded-sm p-5 flex flex-col gap-3">
@@ -841,34 +994,13 @@ function ProfilePage({ profile, onUpdateProfile }) {
       </motion.div>
 
       <motion.div variants={row} className="border border-white/6 rounded-sm p-5">
-        <SH title="GitHub commit activity" sub="Requires GitHub connection" />
-        <div className={profile?.githubConnected ? '' : 'opacity-40 pointer-events-none'}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-[#6B6966]">Last 12 months</span>
-          </div>
-          <div className="overflow-x-auto">
-            <div className="grid gap-0.75" style={{ gridTemplateColumns: 'repeat(52,1fr)', gridTemplateRows: 'repeat(7,1fr)', width:'100%' }}>
-              {HEATMAP.map((cell, i) => (
-                <div key={i} className={`w-full aspect-square rounded-xs ${getIntensity(cell.intensity, cell.active)}`} style={{ minWidth:8, minHeight:8 }} />
-              ))}
-            </div>
-          </div>
-          <div className="mt-5 space-y-2.5">
-            {LANGUAGES.map(l => (
-              <div key={l.lang}>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-[#A09E9A]">{l.lang}</span>
-                  <span className="text-[#3D3B38]">{l.commits} commits</span>
-                </div>
-                <div className="h-0.5 bg-white/6 rounded-full">
-                  <div className="h-full bg-[#C8FF00] rounded-full" style={{ width: `${l.pct}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {!profile?.githubConnected && (
-          <p className="text-[11px] text-[#3D3B38] mt-3">Connect GitHub above to unlock this section.</p>
+        <SH title="GitHub commit activity" sub="Live data after GitHub OAuth" />
+        {profile?.githubConnected ? (
+          <p className="text-[12px] text-[#6B6966] py-4">
+            Commit heatmap and language stats will appear here once GitHub activity is synced from your account.
+          </p>
+        ) : (
+          <p className="text-[12px] text-[#6B6966] py-4">Connect GitHub above to load real activity — no demo charts are shown.</p>
         )}
       </motion.div>
     </motion.div>
@@ -1078,7 +1210,7 @@ function BreakdownBar({ label, score, weight, delay = 0 }) {
   )
 }
 
-function AIMatchPage({ recommendations, profile, onRequest, tokens }) {
+function AIMatchPage({ recommendations, onRequest, tokens }) {
   const [expanded, setExpanded] = useState(null)
   const [running, setRunning] = useState(false)
   const [filter, setFilter] = useState('all')
@@ -1446,7 +1578,37 @@ function WarmIntroPage({ referrers }) {
 // PAGE: SKILL GAP NAVIGATOR
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SkillGapPage() {
+function SkillGapPage({ profile }) {
+  const { user } = useAuth()
+  const [gaps, setGaps] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+  const [source, setSource] = useState('')
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setErr('')
+    fetchAPI('/recommendations/skill-gaps', { candidateId: user.uid })
+      .then((r) => {
+        if (!cancelled) {
+          setGaps(r.gaps || [])
+          setSource(r.source || '')
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setErr(e.message || 'Could not load skill gaps.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [user?.uid])
+
   return (
     <motion.div variants={page} initial="hidden" animate="show" className="space-y-5 max-w-3xl">
       <motion.div variants={row}>
@@ -1454,16 +1616,40 @@ function SkillGapPage() {
           <Target size={15} className="text-[#C8FF00]" />
           <h1 className="text-xl font-bold text-[#E8E6E1]" style={{ fontFamily: 'var(--font-heading)' }}>Skill Gap Navigator</h1>
         </div>
-        <p className="text-sm text-[#6B6966]">See exactly which skills are suppressing your match score — and what to learn to close the gap for each target role.</p>
+        <p className="text-sm text-[#6B6966]">Skills that would most improve your match for your target direction — from your profile and (when configured) AI suggestions.</p>
+        {source && (
+          <p className="text-[10px] text-[#3D3B38] mt-2">
+            {source === 'gemini' ? 'Suggestions: Gemini' : 'Suggestions: profile-based heuristic'}
+            {(profile?.skills?.length || 0) === 0 && ' · Add skills to your profile for tighter recommendations.'}
+          </p>
+        )}
       </motion.div>
 
+      {loading && (
+        <motion.div variants={row} className="flex items-center gap-3 py-8 text-[#6B6966] text-sm">
+          <Loader2 size={18} className="animate-spin text-[#C8FF00]" />
+          Loading skill gaps…
+        </motion.div>
+      )}
+
+      {err && (
+        <motion.div variants={row} className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-sm px-4 py-3 text-xs text-red-400">
+          <AlertCircle size={14} className="shrink-0" />
+          {err}
+        </motion.div>
+      )}
+
+      {!loading && !err && gaps.length === 0 && (
+        <motion.p variants={row} className="text-sm text-[#6B6966]">No gap analysis yet. Update your profile and try again.</motion.p>
+      )}
+
       <motion.div variants={row} className="space-y-4">
-        {SKILL_GAPS.map((g, i) => (
-          <div key={i} className="border border-white/6 rounded-sm overflow-hidden">
+        {!loading && !err && gaps.map((g, i) => (
+          <div key={`${g.role}-${i}`} className="border border-white/6 rounded-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-white/4 flex items-center justify-between">
               <div>
                 <p className="text-[13px] font-semibold text-[#E8E6E1]">{g.role}</p>
-                <p className="text-[11px] text-[#6B6966] mt-0.5">{g.company_tier} companies</p>
+                <p className="text-[11px] text-[#6B6966] mt-0.5">{g.company_tier}</p>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1.5 justify-end">
@@ -1475,24 +1661,27 @@ function SkillGapPage() {
               </div>
             </div>
             <div className="px-5 py-4">
+              {g.rationale ? (
+                <p className="text-[11px] text-[#A09E9A] mb-3">{g.rationale}</p>
+              ) : null}
               <p className="text-[11px] text-[#6B6966] mb-2.5 flex items-center gap-1.5">
                 <TriangleAlert size={10} className="text-amber-400" />
-                Skills lowering your score:
+                Skills to prioritize:
               </p>
               <div className="flex flex-wrap gap-2 mb-4">
-                {g.missing.map(skill => (
+                {(g.missing || []).map((skill) => (
                   <span key={skill} className="text-[12px] bg-amber-400/8 border border-amber-400/20 text-amber-400 px-2.5 py-1 rounded-sm">{skill}</span>
                 ))}
               </div>
               <p className="text-[11px] text-[#6B6966] mb-2">Suggested learning path:</p>
               <div className="space-y-1.5">
-                {g.missing.map(skill => (
-                  <div key={skill} className="flex items-center justify-between bg-white/2 border border-white/5 rounded-sm px-3 py-2">
+                {(g.missing || []).map((skill) => (
+                  <div key={`${skill}-path`} className="flex items-center justify-between bg-white/2 border border-white/5 rounded-sm px-3 py-2">
                     <div className="flex items-center gap-2">
                       <BookOpen size={11} className="text-[#3D3B38]" />
                       <span className="text-[12px] text-[#A09E9A]">Learn {skill}</span>
                     </div>
-                    <button className="text-[11px] text-[#C8FF00] hover:underline">View path →</button>
+                    <span className="text-[11px] text-[#3D3B38]">—</span>
                   </div>
                 ))}
               </div>
@@ -1834,8 +2023,6 @@ export default function CandidateDashboard({ navigate }) {
 
   const tokens = profile?.tokens ?? 3
 
-  const requestedEmployeeIds = new Set(requests.map(r => r.employeeId))
-
   const referrers = recommendations.map(rec => ({
     id:           rec.id,
     alias:        rec.alias,
@@ -1898,21 +2085,21 @@ export default function CandidateDashboard({ navigate }) {
 
   const renderPage = () => {
     switch (activeTab) {
-      case 'overview':    return <OverviewPage setActiveTab={setActiveTab} tokens={tokens} referrers={referrers} requests={enrichedRequests} activity={activity} onRequest={handleRequest} profile={profile} />
-      case 'profile':     return <ProfilePage profile={profile} onUpdateProfile={handleUpdateProfile} />
+      case 'overview':    return <OverviewPage setActiveTab={setActiveTab} tokens={tokens} referrers={referrers} requests={enrichedRequests} activity={activity} onRequest={handleRequest} profile={profile} user={user} />
+      case 'profile':     return <ProfilePage profile={profile} onUpdateProfile={handleUpdateProfile} user={user} />
       case 'discover':    return <DiscoverPage referrers={referrers} onRequest={handleRequest} />
       case 'requests':    return <RequestsPage requests={enrichedRequests} />
       case 'shadow-interview': return <ShadowInterviewPage interviews={shadowInterviews} onComplete={() => {}} />
-      case 'ai-match':    return <AIMatchPage recommendations={recommendations} profile={profile} onRequest={handleRequest} tokens={tokens} />
+      case 'ai-match':    return <AIMatchPage recommendations={recommendations} onRequest={handleRequest} tokens={tokens} />
       case 'warm-intro':  return <WarmIntroPage referrers={referrers} />
-      case 'skill-gap':   return <SkillGapPage />
+      case 'skill-gap':   return <SkillGapPage profile={profile} />
       default:            return null
     }
   }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#111]">
-      <Sidebar active={activeTab} setActive={setActiveTab} navigate={navigate} tokens={tokens} profile={profile} interviewBadge={shadowInterviews.filter(i => i.status === 'generated').length} />
+      <Sidebar active={activeTab} setActive={setActiveTab} navigate={navigate} tokens={tokens} profile={profile} user={user} interviewBadge={shadowInterviews.filter(i => i.status === 'generated').length} />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
@@ -1935,6 +2122,8 @@ export default function CandidateDashboard({ navigate }) {
           <RequestModal
             referrer={modalReferrer}
             tokens={tokens}
+            candidateId={user.uid}
+            profile={profile}
             onClose={() => setModalRef(null)}
             onSend={handleSend}
           />

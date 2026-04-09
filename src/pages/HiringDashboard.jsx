@@ -6,11 +6,13 @@ import { subscribeAllCandidates } from '../firebase/firestore'
 import {
   subscribeReferrals,
   subscribeJobs,
-  subscribeEmployeeProfilesForLeaderboard,
   subscribeEmployeeProfiles,
   subscribePipeline,
   updateReferralStatus,
   updatePipelineStatus,
+  deletePipelineEntry,
+  deleteReferralEntry,
+  mergePipelineAndReferralRows,
   aggregateDashboardMetrics,
   referrerMetricsForEmployee,
   displayReferrerName,
@@ -19,6 +21,7 @@ import {
   createReferral,
   purgeDemoData,
   pipelineToReferralStatus,
+  hiringRowBusyKey,
 } from '../firebase/hiringFirestore'
 import MetricsCards from '../components/hiring/MetricsCards'
 import ReferralTable from '../components/hiring/ReferralTable'
@@ -32,13 +35,14 @@ const fadeUp = {
 }
 
 export default function HiringDashboard({ navigate }) {
-  const { user } = useAuth()
+  const { user, role, loading: authLoading } = useAuth()
   const [referrals, setReferrals] = useState([])
   const [pipeline, setPipeline] = useState([])
   const [jobs, setJobs] = useState([])
   const [candidates, setCandidates] = useState([])
   const [employees, setEmployees] = useState([])
-  const [busyId, setBusyId] = useState(null)
+  /** `${source}:${id}` so pipeline vs referrals never collide on busy state */
+  const [busyKey, setBusyKey] = useState(null)
   const [error, setError] = useState('')
   const [createJobOpen, setCreateJobOpen] = useState(false)
   const [createRefOpen, setCreateRefOpen] = useState(false)
@@ -78,7 +82,9 @@ export default function HiringDashboard({ navigate }) {
         return {
           id: r.id,
           source: 'referrals',
-          status: r.status,
+          candidateId: r.candidateId,
+          jobId: r.jobId,
+          status: r.status || 'requested',
           matchScore: r.matchScore,
           candidateName: cand?.name || 'Unknown candidate',
           jobTitle: job?.title ? `${job.title}${job.company ? ` · ${job.company}` : ''}` : 'Unknown role',
@@ -96,6 +102,8 @@ export default function HiringDashboard({ navigate }) {
         return {
           id: p.id,
           source: 'pipeline',
+          candidateId: p.candidateId,
+          jobId: p.jobId,
           status: pipelineToReferralStatus(p.status),
           matchScore: p.match,
           candidateName: cand?.name || p.candidateName || 'Unknown candidate',
@@ -106,16 +114,19 @@ export default function HiringDashboard({ navigate }) {
     [pipeline, candById, empById]
   )
 
-  // What hiring should see for "Forwarded to ATS" is `pipelineRows`.
-  // We keep `referralRows` too (from hiring-created referrals).
-  const enrichedRows = useMemo(() => [...pipelineRows, ...referralRows], [pipelineRows, referralRows])
+  // One row per candidate when they exist in both collections (pipeline wins for stage).
+  const enrichedRows = useMemo(
+    () => mergePipelineAndReferralRows(pipelineRows, referralRows),
+    [pipelineRows, referralRows]
+  )
 
   const recentEnriched = useMemo(() => enrichedRows.slice(0, 6), [enrichedRows])
 
   const grouped = useMemo(() => {
     const g = Object.fromEntries(REFERRAL_STATUSES.map((s) => [s, []]))
     enrichedRows.forEach((row) => {
-      if (g[row.status]) g[row.status].push(row)
+      const bucket = REFERRAL_STATUSES.includes(row.status) ? row.status : 'requested'
+      g[bucket].push(row)
     })
     return g
   }, [enrichedRows])
@@ -140,17 +151,52 @@ export default function HiringDashboard({ navigate }) {
 
   const handleStatus = useCallback(async (id, status, source) => {
     setError('')
-    setBusyId(id)
+    const src = source === 'pipeline' ? 'pipeline' : 'referrals'
+    setBusyKey(hiringRowBusyKey(src, id))
     try {
-      if (source === 'pipeline') {
+      if (src === 'pipeline') {
         await updatePipelineStatus(id, status)
       } else {
         await updateReferralStatus(id, status)
       }
     } catch (e) {
-      setError(e.message || 'Update failed. Check Firestore rules and indexes.')
+      const code = e?.code || ''
+      const msg = e?.message || 'Update failed.'
+      setError(
+        code === 'permission-denied'
+          ? `${msg} Deploy Firestore rules and ensure your user document has role "hiring".`
+          : `${code ? `[${code}] ` : ''}${msg}`
+      )
+      console.error('[hiring] status update failed:', code, msg, { id, status, source: src })
     } finally {
-      setBusyId(null)
+      setBusyKey(null)
+    }
+  }, [])
+
+  const handleDelete = useCallback(async (id, source) => {
+    if (!window.confirm('Remove this candidate from the ATS? This deletes this pipeline or referral record only (not the user account).')) {
+      return
+    }
+    setError('')
+    const src = source === 'pipeline' ? 'pipeline' : 'referrals'
+    setBusyKey(hiringRowBusyKey(src, id))
+    try {
+      if (src === 'pipeline') {
+        await deletePipelineEntry(id)
+      } else {
+        await deleteReferralEntry(id)
+      }
+    } catch (e) {
+      const code = e?.code || ''
+      const msg = e?.message || 'Delete failed.'
+      setError(
+        code === 'permission-denied'
+          ? `${msg} Deploy Firestore rules (pipeline delete) and ensure role "hiring".`
+          : `${code ? `[${code}] ` : ''}${msg}`
+      )
+      console.error('[hiring] delete failed:', code, msg, { id, source: src })
+    } finally {
+      setBusyKey(null)
     }
   }, [])
 
@@ -162,13 +208,14 @@ export default function HiringDashboard({ navigate }) {
         referrerName={displayReferrerName(row.status, row.referrerName)}
         status={row.status}
         matchScore={row.matchScore}
-        busy={busyId === row.id}
+        busy={busyKey === hiringRowBusyKey(row.source, row.id)}
         onInterview={() => handleStatus(row.id, 'interview', row.source)}
         onHired={() => handleStatus(row.id, 'hired', row.source)}
         onReject={() => handleStatus(row.id, 'rejected', row.source)}
+        onRemove={() => handleDelete(row.id, row.source)}
       />
     ),
-    [busyId, handleStatus]
+    [busyKey, handleStatus, handleDelete]
   )
 
   const onSignOut = useCallback(() => navigate('landing'), [navigate])
@@ -294,6 +341,12 @@ export default function HiringDashboard({ navigate }) {
             {error && (
               <div className="text-xs text-red-400 border border-red-500/25 bg-red-500/10 rounded-sm px-3 py-2">{error}</div>
             )}
+            {!authLoading && user && role !== 'hiring' && (
+              <div className="text-xs text-amber-200/90 border border-amber-500/30 bg-amber-500/10 rounded-sm px-3 py-2">
+                Your Firestore user profile does not have role &quot;hiring&quot;. Status buttons will fail with permission-denied until{' '}
+                <code className="text-[11px]">users/{user.uid}</code> has <code className="text-[11px]">role: &quot;hiring&quot;</code>.
+              </div>
+            )}
 
             <motion.section variants={fadeUp} initial="hidden" animate="show" className="rounded-sm border border-white/6 bg-white/[0.015] p-4">
               <SectionHeader icon={BarChart2} title="Funnel metrics" subtitle="At-a-glance pipeline health" />
@@ -315,7 +368,7 @@ export default function HiringDashboard({ navigate }) {
                       </thead>
                       <tbody>
                         {recentEnriched.map((r) => (
-                          <tr key={r.id} className="border-b border-white/[0.05]">
+                          <tr key={`${r.source}-${r.id}`} className="border-b border-white/[0.05]">
                             <td className="px-4 py-2 text-[#E8E6E1]">{r.candidateName}</td>
                             <td className="px-4 py-2 text-[#A09E9A]">{displayReferrerName(r.status, r.referrerName)}</td>
                             <td className="px-4 py-2 text-[#A09E9A]">{r.jobTitle}</td>
@@ -373,7 +426,12 @@ export default function HiringDashboard({ navigate }) {
               )}
             </motion.section>
 
-            <motion.section variants={fadeUp} initial="hidden" animate="show" className="rounded-sm border border-white/6 bg-white/[0.015] p-4">
+            <motion.section
+              variants={fadeUp}
+              initial="hidden"
+              animate="show"
+              className="rounded-sm border border-white/6 bg-white/[0.015] p-4 overflow-x-auto overflow-y-visible"
+            >
               <SectionHeader title="Pipeline" subtitle="Track and update candidates through each hiring stage" />
               <PipelineView grouped={grouped} renderCard={renderPipelineCard} />
             </motion.section>
@@ -382,11 +440,9 @@ export default function HiringDashboard({ navigate }) {
               <SectionHeader title="All referrals" subtitle="Candidate, role, status, and privacy-safe referrer view" />
               <ReferralTable
                 rows={enrichedRows}
-                busyId={busyId}
-                onRowAction={(id, st) => {
-                  const row = enrichedRows.find((r) => r.id === id)
-                  handleStatus(id, st, row?.source || 'referrals')
-                }}
+                busyKey={busyKey}
+                onRowAction={(id, st, src) => handleStatus(id, st, src)}
+                onRowDelete={(id, src) => handleDelete(id, src)}
               />
             </motion.section>
           </main>

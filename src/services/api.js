@@ -2,35 +2,44 @@ import { getAuth } from 'firebase/auth'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-async function getAuthToken() {
+async function buildAuthHeaders(body, options, forceRefresh) {
   const user = getAuth().currentUser
   if (!user) throw new Error('Not authenticated')
-  return user.getIdToken()
-}
-
-export async function fetchAPI(endpoint, body = null, options = {}) {
-  const token = await getAuthToken()
+  const token = await user.getIdToken(forceRefresh)
   const headers = {
-    'Authorization': `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
     ...options.headers,
   }
-
   if (!(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
   }
+  return headers
+}
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    method: options.method || 'POST',
-    headers,
-    body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || `API error ${res.status}`)
+/**
+ * POST/GET helper with Firebase ID token. Retries once with a forced token refresh on 401
+ * (stale cache after tab sleep or clock skew).
+ */
+export async function fetchAPI(endpoint, body = null, options = {}) {
+  let forceRefresh = false
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const headers = await buildAuthHeaders(body, options, forceRefresh)
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      method: options.method || 'POST',
+      headers,
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+    })
+    if (res.status === 401 && attempt === 0) {
+      forceRefresh = true
+      continue
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || `API error ${res.status}`)
+    }
+    return res.json()
   }
-
-  return res.json()
+  throw new Error('Authentication failed')
 }
 
 export async function uploadResume(file, candidateId = null) {

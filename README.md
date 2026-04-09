@@ -1,140 +1,141 @@
 # RefHire — AI-Powered Job Referral Platform
 
-A full-stack platform connecting job seekers with employees for smart, anonymous referrals. Features AI-powered resume parsing, recommendation matching, referral simulation, and shadow interviews — all backed by a dedicated Python engine.
+Full-stack app connecting job seekers, employee referrers, and a hiring committee. The **React** client uses Firebase Auth + Firestore in real time; the **FastAPI** backend runs matching engines, resume parsing (PDF), optional **Google Gemini** features, and **Admin SDK** writes when client security rules block hiring actions.
 
 ## Architecture
 
 ```
 ┌─────────────────────────┐      HTTP / JSON       ┌─────────────────────────┐
 │     React Frontend      │ ◄──────────────────────►│    FastAPI Backend      │
-│  (Vite + Tailwind v4)   │   Bearer token auth     │  (AI Engines + CRUD)   │
+│  (Vite + Tailwind v4)   │   Bearer ID token       │  (engines + Admin SDK)  │
 └──────────┬──────────────┘                         └──────────┬──────────────┘
            │                                                   │
-           │  Firebase Client SDK                Firebase Admin SDK
-           │  (Auth + Firestore listeners)       (Firestore reads/writes)
+           │  Firebase Client SDK                 Firebase Admin SDK
+           │  (Auth + Firestore listeners)        (Firestore reads/writes)
            │                                                   │
-           └──────────────────┐  ┌─────────────────────────────┘
-                              ▼  ▼
-                    ┌───────────────────┐
-                    │  Firebase Cloud   │
-                    │  Auth + Firestore │
-                    └───────────────────┘
+           └──────────────────┐  ┌───────────────────────────────┘
+                            ▼  ▼
+                  ┌───────────────────┐
+                  │  Firebase Cloud │
+                  │  Auth + Firestore │
+                  └───────────────────┘
 ```
 
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, Vite, Tailwind CSS v4, Framer Motion, Lucide Icons |
-| Backend | Python FastAPI, Uvicorn |
-| Database | Firebase Cloud Firestore |
-| Auth | Firebase Authentication (Email/Password, GitHub OAuth) |
-| Resume Parsing | PyMuPDF (heuristic, no LLM) |
-| AI Engines | Custom weighted-scoring algorithms (no external AI APIs) |
+|-------|------------|
+| Frontend | React 19, Vite, Tailwind CSS v4, Framer Motion, Lucide |
+| Backend | Python 3.10+, FastAPI, Uvicorn |
+| Database | Cloud Firestore |
+| Auth | Firebase (email/password, GitHub OAuth) |
+| Resume | PyMuPDF + heuristics (no LLM) |
+| Optional AI | Google Gemini (`google-generativeai`): shadow interview, skill gaps, referral pitch draft |
+| Rules / indexes | `firestore.rules`, `firestore.indexes.json` (deploy to your Firebase project) |
 
-## Project Structure
+## Project structure
 
 ```
 JOBREF/
 ├── src/                          # React frontend
 │   ├── pages/
-│   │   ├── LandingPage.jsx       # Public landing page
-│   │   ├── AuthPage.jsx          # Sign-in / Register
+│   │   ├── LandingPage.jsx
+│   │   ├── AuthPage.jsx
 │   │   ├── CandidateDashboard.jsx
-│   │   └── EmployeeDashboard.jsx
-│   ├── contexts/
-│   │   └── AuthContext.jsx       # Global auth state
+│   │   ├── EmployeeDashboard.jsx
+│   │   └── HiringDashboard.jsx   # ATS: referrals + pipeline (role: hiring)
+│   ├── components/hiring/        # Metrics, pipeline, tables, cards
+│   ├── contexts/AuthContext.jsx
 │   ├── firebase/
-│   │   ├── config.js             # Firebase app init
-│   │   ├── auth.js               # Auth operations + profile creation
-│   │   ├── firestore.js          # Firestore subscriptions & CRUD
-│   │   ├── utils.js              # Helpers (timeAgo, etc.)
-│   │   └── seed.js               # Demo data seeder
-│   └── services/
-│       └── api.js                # HTTP client with Firebase token injection
+│   │   ├── config.js
+│   │   ├── auth.js
+│   │   ├── firestore.js          # Client Firestore helpers
+│   │   ├── hiringFirestore.js    # Hiring dashboard listeners + pipeline/referral helpers
+│   │   ├── utils.js
+│   │   └── seed.js
+│   └── services/api.js           # fetch() + Firebase ID token
 │
-├── backend/                      # FastAPI backend
-│   ├── main.py                   # App entry point
-│   ├── config.py                 # Firebase Admin init, env config
+├── backend/
+│   ├── main.py
+│   ├── config.py                 # Firebase Admin, CORS, PORT
 │   ├── engines/
-│   │   ├── recommendation_engine.py  # Candidate ↔ Employee matching
-│   │   ├── referral_simulator.py     # Interview/hire probability prediction
-│   │   ├── shadow_interview.py       # Question generation + answer evaluation
-│   │   └── resume_parser.py          # PDF → structured profile (PyMuPDF)
+│   │   ├── recommendation_engine.py
+│   │   ├── referral_simulator.py
+│   │   ├── shadow_interview.py   # Fallback when Gemini unavailable
+│   │   ├── resume_parser.py
+│   │   └── skill_gap_heuristic.py
 │   ├── routers/
-│   │   ├── recommendations.py    # /recommendations/*
-│   │   ├── simulator.py          # /simulate-referral, /simulate-improvement
-│   │   ├── interview.py          # /shadow-interview/*
-│   │   └── resume.py             # /resume/*
-│   ├── models/
-│   │   └── schemas.py            # Pydantic request/response models
+│   │   ├── recommendations.py    # match, skill-gaps, referral-draft
+│   │   ├── simulator.py
+│   │   ├── interview.py
+│   │   ├── resume.py
+│   │   └── dashboard.py          # hiring metrics + pipeline/referral admin writes
+│   ├── models/schemas.py
 │   ├── services/
-│   │   ├── auth.py               # Firebase ID token verification
-│   │   └── firestore_service.py  # Firestore CRUD via Admin SDK
+│   │   ├── auth.py
+│   │   ├── firestore_service.py
+│   │   └── gemini_features.py
 │   ├── requirements.txt
 │   └── .env.example
 │
-├── firestore.rules               # Security rules
-├── .env.example                  # Frontend env template
+├── firestore.rules
+├── firestore.indexes.json
+├── firebase.json                 # `firebase deploy --only firestore:rules`
+├── .env.example
 └── package.json
 ```
 
 ## Prerequisites
 
-- **Node.js** >= 18
-- **Python** >= 3.10
-- A **Firebase** project with Authentication and Firestore enabled
+- **Node.js** ≥ 18  
+- **Python** ≥ 3.10  
+- A **Firebase** project (Auth + Firestore)
 
 ## Setup
 
-### 1. Firebase Project
+### 1. Firebase
 
-1. Go to [Firebase Console](https://console.firebase.google.com/) and create a project (or use an existing one).
-2. Enable **Authentication** → Sign-in method → turn on **Email/Password** (and optionally **GitHub**).
-3. Create a **Firestore Database** in your preferred region (start in test mode for development).
-4. Apply the security rules from `firestore.rules` in the Firestore **Rules** tab.
+1. [Firebase Console](https://console.firebase.google.com/) — create or select a project.  
+2. Enable **Authentication** (Email/Password; optional GitHub).  
+3. Create **Firestore** (production or test mode for dev).  
+4. Publish **`firestore.rules`** from this repo (Firestore → Rules).  
+5. Deploy composite indexes from **`firestore.indexes.json`** if prompted by the client (Firestore → Indexes).
 
-### 2. Firebase Service Account Key (for backend)
+### 2. Service account (backend)
 
-1. In Firebase Console → **Project Settings** (gear icon) → **Service Accounts**.
-2. Click **"Generate New Private Key"** and download the JSON file.
-3. Save it as `backend/serviceAccountKey.json`.
+1. Project settings → **Service accounts** → generate key.  
+2. Save as **`backend/serviceAccountKey.json`** (gitignored).
 
-> This file is gitignored and should never be committed.
+### 3. Environment
 
-### 3. Environment Variables
-
-**Frontend** — copy `.env.example` to `.env` and fill in your Firebase config:
+**Frontend** — copy `.env.example` → `.env`:
 
 ```env
-VITE_FIREBASE_API_KEY=your-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-VITE_FIREBASE_APP_ID=your-app-id
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
 VITE_USE_EMULATORS=false
 VITE_API_URL=http://localhost:8000
 ```
 
-**Backend** — copy `backend/.env.example` to `backend/.env`:
+**Backend** — copy `backend/.env.example` → `backend/.env`:
 
 ```env
 GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
 CORS_ORIGINS=http://localhost:5173
 PORT=8000
+# Optional: GEMINI_API_KEY=...
 ```
 
-### 4. Install & Run
-
-**Frontend:**
+### 4. Install and run
 
 ```bash
 npm install
 npm run dev
 ```
-
-**Backend:**
 
 ```bash
 cd backend
@@ -142,94 +143,54 @@ pip install -r requirements.txt
 python main.py
 ```
 
-The frontend runs on `http://localhost:5173` and the backend on `http://localhost:8000`.
+- App: `http://localhost:5173`  
+- API: `http://localhost:8000`  
+- Health: `GET /health`
 
-## API Endpoints
+### 5. Hiring users
 
-All endpoints require a Firebase ID token in the `Authorization: Bearer <token>` header.
+Firestore document **`users/{uid}`** must include **`role: "hiring"`** (string, case-insensitive in rules) for the hiring dashboard and for client writes that depend on `isHiring()` in security rules.
 
-### Recommendations
+Pipeline **status/delete** from the browser may still hit `permission-denied` if rules or user docs are misaligned; the app then retries via **`POST /dashboard/pipeline/*`** using the Admin SDK (backend must be running and the service account must match the same Firebase project).
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/recommendations/candidate` | Get ranked employee recommendations for a candidate |
-| POST | `/recommendations/employer` | Get ranked candidate recommendations for an employer |
-| POST | `/recommendations/score` | Score a specific candidate–employee pair |
+## API overview
 
-### Referral Simulator
+Unless noted, endpoints expect **`Authorization: Bearer <Firebase ID token>`**.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/simulate-referral` | Predict interview/hire probability with risk factors |
-| POST | `/simulate-improvement` | Re-simulate after hypothetical skill/experience additions |
+| Area | Examples |
+|------|----------|
+| Recommendations | `POST /recommendations/candidate`, `/employer`, `/score`, `/skill-gaps`, `/referral-draft` |
+| Simulator | `POST /simulate-referral`, `POST /simulate-improvement` |
+| Shadow interview | `POST /shadow-interview/generate`, `/submit`, `GET /shadow-interview/{id}/result` |
+| Resume | `POST /resume/parse`, `/resume/parse-and-apply` |
+| Hiring (dashboard) | `GET /dashboard/metrics`, `/referrals`, `/top-referrers`; `POST /dashboard/pipeline/update-status`, `/pipeline/delete`; `POST /dashboard/referral/update-status` |
+| Health | `GET /health` |
 
-### Shadow Interview
+**Security note:** Some early `GET /dashboard/*` routes may not verify the token; prefer not exposing the API publicly without authentication or network restrictions. Pipeline/referral mutation routes verify the token and hiring role where implemented.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/shadow-interview/generate` | Generate personalized technical + behavioral questions |
-| POST | `/shadow-interview/submit` | Submit answers (triggers async evaluation) |
-| GET | `/shadow-interview/{id}/result` | Retrieve evaluation scores and recommendation |
+## Firestore collections (main)
 
-### Resume Parser
+| Collection | Purpose |
+|------------|---------|
+| `users` | `role`: `candidate` \| `employee` \| `hiring` |
+| `candidateProfiles` | Skills, experience, tokens, etc. |
+| `employeeProfiles` | `activeReqs`, stack, reputation, karma |
+| `referralRequests` | Candidate → employee requests |
+| `pipeline` | Forwarded candidates / stages |
+| `referrals` | Hiring ATS rows (hiring role) |
+| `jobs` | Job postings (hiring) |
+| `dashboard_stats` | Aggregates (hiring) |
+| `activity` | Notifications |
+| `shadowInterviews` | Interview flow |
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/resume/parse` | Upload PDF → extract structured profile data |
-| POST | `/resume/parse-and-apply` | Parse PDF and save results to candidate's Firestore profile |
+## Scripts
 
-### Health
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Returns `{ "status": "ok" }` |
-
-## Features
-
-### For Candidates
-- **Resume Upload** — upload a PDF and have it auto-parsed into your profile (skills, experience, role, contact info)
-- **AI Recommendations** — ranked list of anonymous referrers matched to your skills, with tier badges and score breakdowns
-- **Shadow Interview** — complete a short AI-generated technical interview before referral acceptance
-- **Referral Requests** — send up to 3 token-gated requests per month
-- **Activity Feed** — real-time notifications for request status changes
-
-### For Employees / Referrers
-- **Talent Scout** — AI-ranked candidates matching your company's tech stack
-- **Referral Simulator** — predict interview and hire probability before accepting a referral, with risk factor analysis
-- **Shadow Interview Results** — review structured evaluation scores before committing to a referral
-- **Pipeline Tracking** — monitor referred candidates through hiring stages
-- **Reputation System** — earn reputation points from successful referrals
-
-### Platform
-- **Anonymous by default** — identities are revealed only on mutual opt-in
-- **Token-gated requests** — prevents spam, candidates get 3 tokens/month
-- **Real-time sync** — Firestore `onSnapshot` listeners for instant UI updates
-- **Responsive design** — dark-themed modern UI with Framer Motion animations
-
-## Firestore Collections
-
-| Collection | Description |
-|------------|-------------|
-| `users` | Auth metadata (uid, email, role, displayName) |
-| `candidateProfiles` | Skills, experience, bio, resume data, tokens |
-| `employeeProfiles` | Company, stack, reputation, referral count |
-| `referralRequests` | Candidate → Employee referral requests with status |
-| `pipeline` | Accepted referrals tracked through hiring stages |
-| `activity` | User notification feed |
-| `shadowInterviews` | Generated questions, submitted answers, evaluation scores |
-
-## Scoring & Matching
-
-The recommendation engine uses multi-factor weighted scoring:
-
-- **Skill Match (35%)** — canonical normalization with alias resolution, fuzzy matching, and category-aware cross-matching
-- **Domain/Role Fit (20%)** — inferred domain compatibility between candidate targets and employee stack
-- **Experience Alignment (15%)** — years of experience relative to role seniority expectations
-- **Referrer Credibility (15%)** — reputation score and successful referral history
-- **Profile Depth (10%)** — completeness signals (GitHub, portfolio, pitch quality)
-- **Activity Signals (5%)** — recent platform engagement
-
-Results are grouped into tiers: **Perfect Match** (85+), **Strong Match** (70–84), **Good Match** (55–69), **Partial Match** (40–54), **Low Match** (<40).
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Vite dev server |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm run preview` | Preview production build |
 
 ## License
 

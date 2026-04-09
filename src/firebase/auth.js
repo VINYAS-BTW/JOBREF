@@ -11,22 +11,31 @@ import { auth, db } from './config'
 
 const githubProvider = new GithubAuthProvider()
 
+export function normalizeUserRole(role) {
+  if (role == null || typeof role !== 'string') return role
+  const r = role.trim().toLowerCase()
+  if (r === 'hiring' || r === 'employee' || r === 'candidate') return r
+  return role
+}
+
 export async function registerWithEmail(email, password, name, role, extra = {}) {
   const { user } = await createUserWithEmailAndPassword(auth, email, password)
   await updateProfile(user, { displayName: name })
+
+  const storedRole = normalizeUserRole(role)
 
   await setDoc(doc(db, 'users', user.uid), {
     uid:       user.uid,
     email,
     name,
-    role,
+    role:      storedRole,
     createdAt: serverTimestamp(),
-    ...(role === 'employee'
+    ...(storedRole === 'employee'
       ? { karmaScore: 0, totalReferrals: 0, successfulReferrals: 0 }
       : {}),
   })
 
-  if (role === 'candidate') {
+  if (storedRole === 'candidate') {
     await setDoc(doc(db, 'candidateProfiles', user.uid), {
       uid:               user.uid,
       name,
@@ -43,7 +52,7 @@ export async function registerWithEmail(email, password, name, role, extra = {})
       tokenResetDate:    new Date(Date.now() + 30 * 86400000),
       createdAt:         serverTimestamp(),
     })
-  } else if (role === 'employee') {
+  } else if (storedRole === 'employee') {
     await setDoc(doc(db, 'employeeProfiles', user.uid), {
       uid:            user.uid,
       name,
@@ -85,20 +94,21 @@ export async function loginWithGithub() {
 }
 
 export async function completeGithubProfile(user, role, extra = {}) {
-  const name = user.displayName || user.email?.split('@')[0] || 'User'
+  const name = (user.displayName || '').trim() || (user.email || '').split('@')[0] || ''
+  const storedRole = normalizeUserRole(role)
 
   await setDoc(doc(db, 'users', user.uid), {
     uid:       user.uid,
     email:     user.email,
     name,
-    role,
+    role:      storedRole,
     createdAt: serverTimestamp(),
-    ...(role === 'employee'
+    ...(storedRole === 'employee'
       ? { karmaScore: 0, totalReferrals: 0, successfulReferrals: 0 }
       : {}),
   })
 
-  if (role === 'candidate') {
+  if (storedRole === 'candidate') {
     await setDoc(doc(db, 'candidateProfiles', user.uid), {
       uid:               user.uid,
       name,
@@ -115,7 +125,7 @@ export async function completeGithubProfile(user, role, extra = {}) {
       tokenResetDate:    new Date(Date.now() + 30 * 86400000),
       createdAt:         serverTimestamp(),
     })
-  } else if (role === 'employee') {
+  } else if (storedRole === 'employee') {
     await setDoc(doc(db, 'employeeProfiles', user.uid), {
       uid:            user.uid,
       name,
