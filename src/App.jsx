@@ -36,7 +36,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#111315] flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-b from-transparent via-black/50 to-lime-950 to-90% flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-6 h-6 border-2 border-[#C8FF00] border-t-transparent rounded-full animate-spin" />
           <span className="text-sm font-mainheading text-[#999] tracking-widest uppercase">
@@ -53,7 +53,7 @@ export default function App() {
       style={{
         fontFamily: "var(--font-info)",
         background:
-          "linear-gradient(0deg, #111315 0%, #0A0A0B 80%, rgba(100,100,000,0.22) 100%)",
+          "linear-gradient(180deg, #111315 0%, #0A0A0B 20%, rgba(200,255,0,0.4) 100%)",
       }}
     >
       <AnimatePresence mode="wait">

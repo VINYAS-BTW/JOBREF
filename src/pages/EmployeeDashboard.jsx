@@ -31,10 +31,10 @@ const C = {
   surfaceHover: 'rgba(255,255,255,0.035)',
   border:       'rgba(255,255,255,0.06)',
   borderHover:  'rgba(255,255,255,0.11)',
-  muted:        '#3D3B38',
-  subtle:       '#6B6966',
-  secondary:    '#A09E9A',
-  primary:      '#E8E6E1',
+  muted:        '#8A857E',
+  subtle:       '#B0AAA2',
+  secondary:    '#D2CCC4',
+  primary:      '#F5F2EA',
   accent:       '#C8FF00',
   accentDim:    'rgba(200,255,0,0.08)',
   accentBorder: 'rgba(200,255,0,0.22)',
@@ -935,7 +935,7 @@ function Sidebar({ active, setActive, inboxCount, navigate, profile, activeReqs,
 
   const NavBtn = ({ id, icon: Icon, label, badge }) => (
     <button onClick={() => setActive(id)}
-      className="w-full flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-sm text-xs transition-all duration-150"
+      className="w-full flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-sm text-xs cursor-pointer transition-all duration-150"
       style={{
         background: active === id ? C.accentDim : 'transparent',
         color:      active === id ? C.accent    : C.subtle,
@@ -957,17 +957,17 @@ function Sidebar({ active, setActive, inboxCount, navigate, profile, activeReqs,
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-xs font-bold tracking-widest uppercase" style={{ color: C.accent }}>RefHire</span>
           </div>
-          <div className="text-[10px] uppercase tracking-widest" style={{ color: C.muted }}>Referrer Portal</div>
+          <div className="text-[10px] uppercase tracking-widest text-[#999]" >Referrer Portal</div>
         </div>
 
-        <div className="mx-2 mb-5 flex items-center gap-2 px-2.5 py-2 rounded-sm"
-          style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}` }}>
-          <Lock size={9} style={{ color: C.accent }} />
-          <span className="text-[10px] font-medium" style={{ color: C.accent }}>Anonymous mode on</span>
+        <div className="mx-2 mb-5 flex items-center gap-2 px-2.5 py-2 rounded-full"
+          style={{  border: `1px solid ${C.accentBorder}` }}>
+          <Lock size={10} style={{ color: C.accent }} />
+          <span className="text-[11px] font-medium" style={{ color: C.accent }}>Anonymous mode on</span>
         </div>
 
         <div className="mx-2 mb-5 px-2.5 py-2 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="text-[10px] mb-0.5" style={{ color: C.muted }}>Visible as</div>
+          <div className="text-[12px] mb-0.5 text-[#777]" >Visible as</div>
           <div className="text-[11px] font-medium" style={{ color: C.secondary }}>{profile?.visibleAs || profile?.alias || 'Anonymous Referrer'}</div>
         </div>
 
@@ -1001,7 +1001,7 @@ function Sidebar({ active, setActive, inboxCount, navigate, profile, activeReqs,
 
         <div className="mb-2">
           <div className="px-3 mb-1">
-            <span className="text-[9px] uppercase tracking-widest" style={{ color: C.muted }}>Main</span>
+            <span className="text-[12px] uppercase tracking-widest text-[#999]">Main-</span>
           </div>
           <nav className="space-y-0.5">
             {primary.map(p => <NavBtn key={p.id} {...p} />)}
@@ -1012,7 +1012,7 @@ function Sidebar({ active, setActive, inboxCount, navigate, profile, activeReqs,
 
         <div>
           <div className="px-3 mb-1">
-            <span className="text-[9px] uppercase tracking-widest" style={{ color: C.muted }}>Account</span>
+            <span className="text-[12px] uppercase tracking-widest text-[#999]" >Account</span>
           </div>
           <nav className="space-y-0.5">
             {secondary.map(p => <NavBtn key={p.id} {...p} />)}
@@ -1021,8 +1021,8 @@ function Sidebar({ active, setActive, inboxCount, navigate, profile, activeReqs,
       </div>
 
       <button onClick={() => navigate?.('landing')}
-        className="flex items-center gap-2.5 px-3 py-2.5 text-xs transition-colors"
-        style={{ color: C.muted }}>
+        className="flex items-center gap-2.5 px-3 py-2.5 text-xs transition-colors cursor-pointer"
+        >
         <LogOut size={13} /> Sign out
       </button>
     </aside>
@@ -1036,20 +1036,20 @@ function Topbar({ reputationDisplay, totalBountyLabel }) {
       style={{ borderBottom:`1px solid ${C.border}`, background:'rgba(17,19,21,0.92)', backdropFilter:'blur(12px)' }}>
 
       <div className="flex items-center gap-2 ml-auto">
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
           style={{ background: C.amberDim, border: `1px solid ${C.amberBorder}` }}>
           <Star size={10} style={{ color: C.amber }} />
           <span className="text-xs font-semibold" style={{ color: C.amber }}>{reputationDisplay}</span>
           <span className="text-[10px]" style={{ color: 'rgba(245,158,11,0.5)' }}>rep</span>
         </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
           style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}` }}>
           <span className="text-xs font-semibold" style={{ color: C.accent }}>{totalBountyLabel}</span>
         </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm"
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
           style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <Lock size={10} style={{ color: C.secondary }} />
-          <span className="text-[10px]" style={{ color: C.secondary }}>Anon</span>
+          <Lock size={12} style={{ color: C.secondary }} />
+          <span className="text-[12px]" style={{ color: C.secondary }}>Anon</span>
         </div>
       </div>
     </div>
@@ -1128,9 +1128,9 @@ function DashboardTab({ inbox, reputationRaw, reputationDisplay, successfulHires
           </div>
           <div className="flex gap-1.5">
             {tiers.map(t => (
-              <div key={t.name} className="flex-1 text-center py-1.5 rounded-sm text-[10px] font-medium"
+              <div key={t.name} className="flex-1 text-center py-1.5 rounded-md text-[10px] font-medium"
                 style={{
-                  background: currentTier.name === t.name ? C.accentDim : C.surface,
+                  background: 'transparent',
                   border: `1px solid ${currentTier.name === t.name ? C.accentBorder : C.border}`,
                   color:   currentTier.name === t.name ? C.accent : C.muted,
                 }}>
@@ -1178,36 +1178,36 @@ function DashboardTab({ inbox, reputationRaw, reputationDisplay, successfulHires
 
       {/* AI top picks */}
       {topRecs && topRecs.length > 0 && (
-        <motion.div variants={fadeUp} className="rounded-sm overflow-hidden" style={{ border: `1px solid ${C.accentBorder}`, background: C.accentDim }}>
-          <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.accentBorder}` }}>
+        <motion.div variants={fadeUp} className="rounded-sm overflow-hidden" style={{ border: '1px solid rgba(200,255,0,0.25)', background: 'rgba(148, 158, 110, 0.08)' }}>
+          <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid rgba(200,255,0,0.25)' }}>
             <div className="flex items-center gap-2">
-              <BrainCircuit size={12} style={{ color: C.accent }} />
-              <span className="text-xs font-semibold" style={{ color: C.accent }}>AI Top Picks</span>
-              <span className="text-[10px]" style={{ color: C.subtle }}>Based on your team stack</span>
+            
+              <span className="text-xs font-semibold" style={{ color: 'rgba(216, 230, 216, 0.95)' }}>AI Top Picks</span>
+              <span className="text-[10px]" style={{ color: 'rgba(107,105,102,0.75)' }}>Based on your team stack</span>
             </div>
-            <button onClick={() => setActive('talent')} className="flex items-center gap-1 text-[10px] transition-colors" style={{ color: C.accent }}>
+            <button onClick={() => setActive('talent')} className="flex items-center gap-1 text-[10px] transition-colors" style={{ color: 'rgba(200,255,0,0.75)' }}>
               View all <ChevronRight size={11} />
             </button>
           </div>
           {topRecs.map(r => {
             const mc = r.aiScore >= 80 ? C.accent : r.aiScore >= 65 ? C.amber : C.subtle
             return (
-              <div key={r.id} className="flex items-center gap-4 px-5 py-3.5 transition-colors" style={{ borderBottom: `1px solid ${C.accentBorder}` }}>
+              <div key={r.id} className="flex items-center gap-4 px-5 py-3.5 transition-colors" style={{ borderBottom: '1px solid rgba(200,255,0,0.25)' }}>
                 <div className="w-7 h-7 rounded-sm flex items-center justify-center shrink-0"
                   style={{ background: `${r.tier.color}15`, border: `1px solid ${r.tier.color}33` }}>
                   <Lock size={10} style={{ color: r.tier.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium" style={{ color: C.primary }}>{r.alias}</span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-sm" style={{ color: r.tier.color, border: `1px solid ${r.tier.color}33`, background: `${r.tier.color}0d` }}>{r.tier.label}</span>
+                    <span className="text-xs font-medium" style={{ color: 'rgba(245,245,242,0.96)' }}>{r.alias}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-sm" style={{ color: `${r.tier.color}bf`, border: `1px solid ${r.tier.color}33`, background: `${r.tier.color}0d` }}>{r.tier.label}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px]" style={{ color: C.muted }}>{r.currentRole}</span>
-                    {r.matchedSkills.length > 0 && <span className="text-[10px]" style={{ color: C.subtle }}>· {r.matchedSkills.slice(0, 2).join(', ')}</span>}
+                    <span className="text-[10px]" style={{ color: 'rgba(61,59,56,0.75)' }}>{r.currentRole}</span>
+                    {r.matchedSkills.length > 0 && <span className="text-[10px]" style={{ color: 'rgba(107,105,102,0.75)' }}>· {r.matchedSkills.slice(0, 2).join(', ')}</span>}
                   </div>
                 </div>
-                <div className="text-sm font-bold" style={{ color: mc, ...serif }}>{r.aiScore}%</div>
+                <div className="text-sm font-bold" style={{ color: mc, opacity: 0.75, ...serif }}>{r.aiScore}%</div>
               </div>
             )
           })}
@@ -1375,7 +1375,7 @@ function PipelineTab({ pipeline }) {
                 </div>
                 <div className="col-span-3">
                   <PipelineDots stage={r.stage} />
-                  <p className="text-[10px] mt-1" style={{ color: C.muted }}>{STAGES[r.stage - 1]}</p>
+                  <p className="text-[13px] mt-1" style={{ color: C.muted }}>{STAGES[r.stage - 1]}</p>
                 </div>
                 <div className="col-span-2">
                   <StatusBadge status={r.status} />
@@ -1755,7 +1755,7 @@ function ScoreRing({ score, size = 64, strokeWidth = 4, color }) {
   )
 }
 
-function FactorBar({ label, score, weight, delay = 0 }) {
+function FactorBar({ label, score, weight, delay = 0, barOpacity = 1 }) {
   const barColor = score >= 70 ? C.accent : score >= 45 ? C.amber : C.subtle
   return (
     <div>
@@ -1772,7 +1772,7 @@ function FactorBar({ label, score, weight, delay = 0 }) {
           animate={{ width: `${score}%` }}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay }}
           className="h-full rounded-full"
-          style={{ backgroundColor: barColor }}
+          style={{ backgroundColor: barColor, opacity: barOpacity }}
         />
       </div>
     </div>
@@ -1816,8 +1816,8 @@ function TalentScoutTab({ recommendations, onSelect }) {
     <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
       <motion.div variants={fadeUp}>
         <div className="flex items-center gap-2 mb-1">
-          <BrainCircuit size={15} style={{ color: C.accent }} />
-          <h1 className="text-xl font-bold" style={{ color: C.primary, ...heading }}>AI Talent Scout</h1>
+          
+          <h1 className="text-xl font-bold" style={{ color: 'rgba(216, 230, 216, 0.95)', ...heading }}>AI Talent Scout</h1>
         </div>
         <p className="text-sm" style={{ color: C.subtle }}>
           Multi-factor scoring: skill match (40%), role fit (20%), experience (15%), profile depth (15%), activity signal (10%).
@@ -1845,8 +1845,8 @@ function TalentScoutTab({ recommendations, onSelect }) {
       {/* Top candidate deep-dive */}
       {topRec && (
         <motion.div variants={fadeUp} className="rounded-sm overflow-hidden"
-          style={{ border: `1px solid ${C.accentBorder}`, background: C.accentDim }}>
-          <div className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: `1px solid ${C.accentBorder}` }}>
+          style={{ border: '1px solid rgba(180,190,150,0.22)', background: 'rgba(164,168,145,0.07)' }}>
+          <div className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: '1px solid rgba(180,190,150,0.22)' }}>
             <ScoreRing score={topRec.aiScore} color={topRec.tier.color} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -1865,18 +1865,18 @@ function TalentScoutTab({ recommendations, onSelect }) {
             </div>
             <button onClick={() => onSelect(topRec)}
               className="shrink-0 text-[12px] font-semibold px-4 py-2 rounded-sm transition-all duration-200"
-              style={{ background: C.accent, color: '#0A0A0B' }}>
+              style={{ background: 'rgba(180,190,150,0.22)', border: '1px solid rgba(180,190,150,0.35)', color: 'rgba(235,237,226,0.95)' }}>
               Review
             </button>
           </div>
 
           <div className="p-5 space-y-4">
             <div className="space-y-3">
-              <FactorBar label="Skill Match" score={topRec.breakdown.skill.score} weight={topRec.breakdown.skill.weight} delay={0.1} />
-              <FactorBar label="Domain / Role Fit" score={topRec.breakdown.domain.score} weight={topRec.breakdown.domain.weight} delay={0.2} />
-              <FactorBar label="Experience Alignment" score={topRec.breakdown.experience.score} weight={topRec.breakdown.experience.weight} delay={0.3} />
-              <FactorBar label="Profile Depth" score={topRec.breakdown.profileDepth.score} weight={topRec.breakdown.profileDepth.weight} delay={0.4} />
-              <FactorBar label="Activity Signal" score={topRec.breakdown.activity.score} weight={topRec.breakdown.activity.weight} delay={0.5} />
+              <FactorBar label="Skill Match" score={topRec.breakdown.skill.score} weight={topRec.breakdown.skill.weight} delay={0.1} barOpacity={0.62} />
+              <FactorBar label="Domain / Role Fit" score={topRec.breakdown.domain.score} weight={topRec.breakdown.domain.weight} delay={0.2} barOpacity={0.62} />
+              <FactorBar label="Experience Alignment" score={topRec.breakdown.experience.score} weight={topRec.breakdown.experience.weight} delay={0.3} barOpacity={0.62} />
+              <FactorBar label="Profile Depth" score={topRec.breakdown.profileDepth.score} weight={topRec.breakdown.profileDepth.weight} delay={0.4} barOpacity={0.62} />
+              <FactorBar label="Activity Signal" score={topRec.breakdown.activity.score} weight={topRec.breakdown.activity.weight} delay={0.5} barOpacity={0.62} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
